@@ -12,7 +12,7 @@ Issue → PR → Merge → USDC.
 
 ```
 greenfield/
-├── backend/                                   # Golang (API + Worker)
+├── backend/                                   # Python (FastAPI + SQLAlchemy + Alembic)
 ├── frontend/                                  # React + Vite + TS + Tailwind + Solana Wallets
 ├── contract/                                  # Solana Anchor Program
 ├── docker-compose.yml                         # Postgres Database
@@ -25,7 +25,7 @@ greenfield/
 
 ### 1. Pré-requisitos
 - Docker & Docker Compose
-- Go 1.22+
+- Python 3.12+ & [uv](https://docs.astral.sh/uv/)
 - Node.js 20+ & npm
 - Solana CLI & Rust / Anchor
 
@@ -34,10 +34,13 @@ greenfield/
 docker compose up -d
 ```
 
-### 3. Backend (Go API)
+### 3. Backend (FastAPI)
 ```bash
 cd backend
-go run cmd/api/main.go
+cp .env.example .env
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --port 8080
 ```
 
 ### 4. Frontend (React + Vite)
