@@ -1,0 +1,45 @@
+declare module 'lucide-react' {
+  import * as React from 'react';
+  export interface LucideProps extends React.SVGProps<SVGSVGElement> {
+    size?: string | number;
+    strokeWidth?: string | number;
+    className?: string;
+  }
+  export type LucideIcon = React.FC<LucideProps>;
+  export const GitPullRequest: LucideIcon;
+  export const DollarSign: LucideIcon;
+  export const ShieldCheck: LucideIcon;
+  export const Shield: LucideIcon;
+  export const Coins: LucideIcon;
+  export const Check: LucideIcon;
+  export const Copy: LucideIcon;
+  export const ExternalLink: LucideIcon;
+  export const CheckCircle2: LucideIcon;
+  export const Circle: LucideIcon;
+  export const Clock: LucideIcon;
+  export const ArrowRight: LucideIcon;
+  export const ArrowLeft: LucideIcon;
+  export const ArrowRightLeft: LucideIcon;
+  export const UserCheck: LucideIcon;
+  export const Code2: LucideIcon;
+  export const LayoutDashboard: LucideIcon;
+  export const PlusCircle: LucideIcon;
+  export const Award: LucideIcon;
+  export const History: LucideIcon;
+  export const Sparkles: LucideIcon;
+  export const Landmark: LucideIcon;
+  export const Filter: LucideIcon;
+  export const AlertCircle: LucideIcon;
+  export const X: LucideIcon;
+  export const Lock: LucideIcon;
+  export const CheckCircle: LucideIcon;
+  export const GitMerge: LucideIcon;
+  export const ShieldAlert: LucideIcon;
+  export const Play: LucideIcon;
+  export const RefreshCw: LucideIcon;
+  export const Layers: LucideIcon;
+  export const ChevronRight: LucideIcon;
+  export const Zap: LucideIcon;
+  export const Server: LucideIcon;
+  export const Wallet: LucideIcon;
+}

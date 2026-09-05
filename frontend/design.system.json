@@ -1,0 +1,61 @@
+{
+  "components": {
+    "button": {
+      "library": "react",
+      "style": "vanilla",
+      "sizes": {
+        "sm": {
+          "padding": "0.375rem 0.75rem",
+          "fontSize": "0.875rem",
+          "borderRadius": "6px"
+        },
+        "md": {
+          "padding": "0.625rem 1.25rem",
+          "fontSize": "1rem",
+          "borderRadius": "8px"
+        },
+        "lg": {
+          "padding": "0.875rem 1.75rem",
+          "fontSize": "1.125rem",
+          "borderRadius": "10px"
+        }
+      },
+      "variants": {
+        "primary": {
+          "backgroundColor": "#28B110",
+          "color": "#ffffff"
+        },
+        "secondary": {
+          "backgroundColor": "transparent",
+          "color": "#28B110",
+          "borderColor": "#28B110"
+        },
+        "ghost": {
+          "backgroundColor": "transparent",
+          "color": "#D9EED6"
+        }
+      }
+    },
+    "input": {
+      "library": "react",
+      "style": "vanilla",
+      "sizes": {
+        "sm": {
+          "padding": "0.375rem 0.75rem",
+          "fontSize": "0.875rem",
+          "borderRadius": "6px"
+        },
+        "md": {
+          "padding": "0.625rem 1rem",
+          "fontSize": "1rem",
+          "borderRadius": "8px"
+        },
+        "lg": {
+          "padding": "0.875rem 1.25rem",
+          "fontSize": "1.125rem",
+          "borderRadius": "10px"
+        }
+      }
+    }
+  }
+}
