@@ -20,10 +20,10 @@ export const PointsBadge: React.FC<PointsBadgeProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md font-mono font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30 ${sizeClasses}`}
+      className={`inline-flex items-center gap-1.5 rounded-lg font-mono font-medium bg-amber-50 text-amber-800 border border-amber-200 shadow-sm ${sizeClasses}`}
       title={`${points.toLocaleString()} pontos Greenfield`}
     >
-      {showIcon && <Coins className="w-3.5 h-3.5 text-amber-400" />}
+      {showIcon && <Coins className="w-3.5 h-3.5 text-amber-600" />}
       {points.toLocaleString()} pts
     </span>
   );

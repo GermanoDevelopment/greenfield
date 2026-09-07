@@ -42,4 +42,14 @@ declare module 'lucide-react' {
   export const Zap: LucideIcon;
   export const Server: LucideIcon;
   export const Wallet: LucideIcon;
+  export const Loader2: LucideIcon;
+  export const CheckCheck: LucideIcon;
+  export const Inbox: LucideIcon;
+  export const GitBranch: LucideIcon;
+  export const CircleDot: LucideIcon;
+  export const User: LucideIcon;
+  export const Settings: LucideIcon;
+  export const Bell: LucideIcon;
+  export const AlertTriangle: LucideIcon;
+  export const Search: LucideIcon;
 }

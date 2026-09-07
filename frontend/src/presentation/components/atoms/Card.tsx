@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'highlight' | 'muted';
+  variant?: 'default' | 'highlight' | 'alert' | 'muted';
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -11,14 +11,15 @@ export const Card: React.FC<CardProps> = ({
   ...props
 }) => {
   const variantStyles = {
-    default: 'bg-slate-900/90 border-slate-800 hover:border-slate-700/80',
-    highlight: 'bg-gradient-to-b from-slate-900 to-emerald-950/20 border-emerald-500/30 hover:border-emerald-500/50',
-    muted: 'bg-slate-950/60 border-slate-850',
+    default: 'bg-white border-[#EEF2F6] shadow-card text-ink-heading hover:shadow-hover',
+    highlight: 'bg-white border-blue-200 shadow-card text-ink-heading hover:border-blue-400 hover:shadow-hover',
+    alert: 'bg-amber-50/40 border-amber-300 shadow-card text-ink-heading',
+    muted: 'bg-slate-50 border-slate-200 text-ink-body',
   }[variant];
 
   return (
     <div
-      className={`rounded-xl border p-6 transition-all duration-200 backdrop-blur-sm ${variantStyles} ${className}`}
+      className={`rounded-2xl border p-6 transition-all duration-200 ${variantStyles} ${className}`}
       {...props}
     >
       {children}

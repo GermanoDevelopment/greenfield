@@ -1,112 +1,268 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import SolanaAddressPill from '../components/atoms/SolanaAddressPill';
 import UsdcBadge from '../components/atoms/UsdcBadge';
-import { History, ExternalLink, ShieldCheck } from 'lucide-react';
+import StatusBadge from '../components/atoms/StatusBadge';
+import { History, ExternalLink, ShieldCheck, Lock, Filter, GitPullRequest, Search } from 'lucide-react';
 
 export const PaymentHistoryPage: React.FC = () => {
   const { bounties, solanaService } = useApp();
+  const [filterType, setFilterType] = useState<string>('ALL'); // ALL, CLAIMED, CANCELLED, OPEN
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const claimedBounties = bounties.filter((b) => b.status === 'CLAIMED' && b.claim);
+  // Filtragem conforme a Seção 9.3 ("Todos", "Pagos", "Cancelados", "Em aberto")
+  const filteredBounties = bounties.filter((b) => {
+    // Filtro por tipo/status
+    if (filterType === 'CLAIMED' && b.status !== 'CLAIMED') return false;
+    if (filterType === 'CANCELLED' && b.status !== 'CANCELLED') return false;
+    if (filterType === 'OPEN' && (b.status === 'CLAIMED' || b.status === 'CANCELLED')) return false;
+
+    // Filtro por busca textual
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const issueTitle = b.issue?.title?.toLowerCase() || '';
+      const repoName = b.repository?.name?.toLowerCase() || '';
+      const devName = b.developer?.github_username?.toLowerCase() || '';
+      const signature = b.claim?.transaction_signature?.toLowerCase() || '';
+      return (
+        issueTitle.includes(q) ||
+        repoName.includes(q) ||
+        devName.includes(q) ||
+        signature.includes(q)
+      );
+    }
+
+    return true;
+  });
+
+  const claimedCount = bounties.filter((b) => b.status === 'CLAIMED' && b.claim).length;
 
   return (
-    <div className="flex flex-col gap-8 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+    <div className="flex flex-col gap-6 max-w-5xl mx-auto">
+      {/* Cabeçalho do Histórico */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
-            <History className="w-7 h-7 text-emerald-400" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <History className="w-7 h-7 text-blue-600" />
             <span>Histórico de Pagamentos On-Chain</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Registro imutável de todas as transações USDC liquidadas na rede Solana Devnet.
+          <p className="text-xs text-slate-500 mt-1">
+            Registro imutável e transparente de transações e recompensas liquidadas na rede Solana Devnet.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>{claimedBounties.length} Transações Confirmadas</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-xs font-mono font-medium self-start sm:self-auto">
+          <ShieldCheck className="w-4 h-4 text-purple-600" />
+          <span>{claimedCount} Liquidados On-Chain</span>
         </div>
       </div>
 
-      {claimedBounties.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60 shadow-md">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-950/80 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800 font-mono">
-              <tr>
-                <th className="px-5 py-3.5">Issue & PR</th>
-                <th className="px-5 py-3.5">Desenvolvedor</th>
-                <th className="px-5 py-3.5">Valor Pago</th>
-                <th className="px-5 py-3.5">Assinatura On-Chain</th>
-                <th className="px-5 py-3.5">Data / Hora</th>
-                <th className="px-5 py-3.5 text-right">Explorer</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {claimedBounties.map((bounty) => {
-                const claim = bounty.claim!;
-                const explorerUrl = solanaService.getExplorerUrl(claim.transaction_signature);
+      {/* Barra de Filtros e Busca */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Campo de Busca */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Buscar por issue, dev, repo ou hash..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 shadow-sm min-h-[44px]"
+          />
+        </div>
 
-                return (
-                  <tr key={bounty.id} className="hover:bg-slate-800/30 transition-colors font-mono">
-                    {/* Issue */}
-                    <td className="px-5 py-4 font-sans">
-                      <div className="font-semibold text-white text-xs">
-                        #{bounty.issue?.number} {bounty.issue?.title}
-                      </div>
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        {bounty.repository?.name} {bounty.pr && `(PR #${bounty.pr.number})`}
+        {/* Dropdown de Filtros (Todos, Pagos, Cancelados, Em aberto) */}
+        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs shadow-sm self-start sm:self-auto min-h-[44px]">
+          <Filter className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-slate-500 font-medium">Status:</span>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="bg-transparent text-xs text-slate-800 font-bold focus:outline-none cursor-pointer"
+          >
+            <option value="ALL">Todos os Registros</option>
+            <option value="CLAIMED">Pagos (On-chain)</option>
+            <option value="OPEN">Em Aberto / Em Andamento</option>
+            <option value="CANCELLED">Cancelados</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Listagem Híbrida: Mobile Cards (< 600px) / Desktop Tabela (>= 600px) */}
+      {filteredBounties.length > 0 ? (
+        <div>
+          {/* 1. VISÃO MOBILE (< 600px): Cards Empilhados */}
+          <div className="flex flex-col gap-3.5 md:hidden">
+            {filteredBounties.map((bounty) => {
+              const claim = bounty.claim;
+              const explorerUrl = claim ? solanaService.getExplorerUrl(claim.transaction_signature) : null;
+
+              return (
+                <div
+                  key={bounty.id}
+                  className="rounded-2xl border border-[#EEF2F6] bg-white p-4 shadow-card flex flex-col gap-3 interactive-card"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-mono text-blue-600 font-bold text-xs">
+                        #{bounty.issue?.number}
                       </span>
-                    </td>
+                      <h4 className="font-semibold text-slate-900 text-sm line-clamp-1 mt-0.5">
+                        {bounty.issue?.title}
+                      </h4>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {bounty.repository?.name}
+                      </span>
+                    </div>
 
-                    {/* Developer */}
-                    <td className="px-5 py-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold text-slate-200">
-                          @{bounty.developer?.github_username}
+                    <StatusBadge status={bounty.status} size="sm" />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                    <span className="text-slate-500">Desenvolvedor:</span>
+                    <span className="font-semibold text-slate-800">
+                      {bounty.developer ? `@${bounty.developer.github_username}` : 'Não atribuído'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Valor da Recompensa:</span>
+                    <UsdcBadge amount={bounty.usdc_amount} size="sm" />
+                  </div>
+
+                  {claim && (
+                    <div className="p-2.5 rounded-xl bg-purple-50/50 border border-purple-100 text-[11px] font-mono flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-purple-700">
+                        <Lock className="w-3.5 h-3.5 text-purple-600" />
+                        <span>
+                          {claim.transaction_signature.slice(0, 6)}...{claim.transaction_signature.slice(-6)}
                         </span>
-                        <SolanaAddressPill address={claim.wallet_address} showExplorerLink={false} />
                       </div>
-                    </td>
+                      {explorerUrl && (
+                        <a
+                          href={explorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-purple-700 font-bold hover:underline"
+                        >
+                          Explorer <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-                    {/* Amount */}
-                    <td className="px-5 py-4">
-                      <UsdcBadge amount={claim.usdc_amount} size="sm" />
-                    </td>
+          {/* 2. VISÃO DESKTOP (>= 600px): Tabela Clássica */}
+          <div className="hidden md:block overflow-x-auto rounded-2xl border border-[#EEF2F6] bg-white shadow-card">
+            <table className="w-full text-left text-sm text-slate-700">
+              <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-[#EEF2F6]">
+                <tr>
+                  <th className="px-6 py-4">Issue & Repositório</th>
+                  <th className="px-6 py-4">Desenvolvedor</th>
+                  <th className="px-6 py-4">Valor</th>
+                  <th className="px-6 py-4">Assinatura On-Chain</th>
+                  <th className="px-6 py-4">Status / Data</th>
+                  <th className="px-6 py-4 text-right">Explorer</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#EEF2F6]">
+                {filteredBounties.map((bounty) => {
+                  const claim = bounty.claim;
+                  const explorerUrl = claim ? solanaService.getExplorerUrl(claim.transaction_signature) : null;
 
-                    {/* Signature */}
-                    <td className="px-5 py-4 text-xs text-slate-400">
-                      <span className="p-1.5 rounded bg-slate-950 border border-slate-800 text-[11px] block max-w-[140px] truncate" title={claim.transaction_signature}>
-                        {claim.transaction_signature.slice(0, 8)}...{claim.transaction_signature.slice(-8)}
-                      </span>
-                    </td>
+                  return (
+                    <tr key={bounty.id} className="hover:bg-slate-50/60 transition-colors">
+                      {/* Issue */}
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-900 text-xs">
+                          #{bounty.issue?.number} {bounty.issue?.title}
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
+                          {bounty.repository?.name}
+                          {bounty.pr && (
+                            <span className="text-purple-600 flex items-center gap-0.5 ml-1">
+                              <GitPullRequest className="w-3 h-3" /> PR #{bounty.pr.number}
+                            </span>
+                          )}
+                        </span>
+                      </td>
 
-                    {/* Date */}
-                    <td className="px-5 py-4 text-xs text-slate-400 font-sans">
-                      {new Date(claim.created_at).toLocaleDateString()} {new Date(claim.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </td>
+                      {/* Developer */}
+                      <td className="px-6 py-4">
+                        {bounty.developer ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-800">
+                              @{bounty.developer.github_username}
+                            </span>
+                            <SolanaAddressPill address={bounty.developer.wallet_address} showExplorerLink={false} />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Disponível</span>
+                        )}
+                      </td>
 
-                    {/* Link */}
-                    <td className="px-5 py-4 text-right">
-                      <a
-                        href={explorerUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900/80 border border-purple-700/50 text-purple-300 text-xs transition-colors cursor-pointer"
-                        title="Ver no Solana Explorer"
-                      >
-                        <span>Explorer</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      {/* Valor */}
+                      <td className="px-6 py-4">
+                        <UsdcBadge amount={bounty.usdc_amount} size="sm" />
+                      </td>
+
+                      {/* Assinatura com Selo/Cadeado de Imutabilidade */}
+                      <td className="px-6 py-4">
+                        {claim ? (
+                          <div
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-xs font-mono font-medium shadow-xs"
+                            title={`Assinatura: ${claim.transaction_signature}`}
+                          >
+                            <Lock className="w-3.5 h-3.5 text-purple-600" />
+                            <span>
+                              {claim.transaction_signature.slice(0, 6)}...{claim.transaction_signature.slice(-6)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-mono">—</span>
+                        )}
+                      </td>
+
+                      {/* Status & Data */}
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1">
+                          <StatusBadge status={bounty.status} size="sm" />
+                          <span className="text-[11px] text-slate-400">
+                            {claim ? new Date(claim.created_at).toLocaleDateString() : new Date(bounty.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Link Explorer */}
+                      <td className="px-6 py-4 text-right">
+                        {explorerUrl ? (
+                          <a
+                            href={explorerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-semibold transition-colors cursor-pointer"
+                            title="Ver transação imutável no Solana Explorer"
+                          >
+                            <span>Explorer</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
-        <div className="p-12 rounded-xl border border-slate-800 bg-slate-900/40 text-center text-slate-400">
-          <p className="text-sm">Nenhum pagamento liquidado ainda.</p>
+        <div className="p-12 rounded-2xl border border-[#EEF2F6] bg-white text-center text-slate-500 shadow-card">
+          <p className="text-sm font-medium">Nenhum pagamento ou bounty encontrado com esses critérios.</p>
         </div>
       )}
     </div>

@@ -12,6 +12,7 @@ import BountyDetailsPage from './presentation/pages/BountyDetailsPage';
 import MyContributionsPage from './presentation/pages/MyContributionsPage';
 import ClaimPage from './presentation/pages/ClaimPage';
 import PaymentHistoryPage from './presentation/pages/PaymentHistoryPage';
+import SettingsPage from './presentation/pages/SettingsPage';
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ export function App() {
                 <Route path="/contributions" element={<MyContributionsPage />} />
                 <Route path="/claim" element={<ClaimPage />} />
                 <Route path="/history" element={<PaymentHistoryPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </AppLayout>

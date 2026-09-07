@@ -4,11 +4,14 @@ import { Check, Copy, ExternalLink } from 'lucide-react';
 interface SolanaAddressPillProps {
   address: string;
   showExplorerLink?: boolean;
+  /** Explorer cluster query value; `null` means mainnet (no query param). */
+  explorerCluster?: string | null;
 }
 
 export const SolanaAddressPill: React.FC<SolanaAddressPillProps> = ({
   address,
   showExplorerLink = true,
+  explorerCluster = 'devnet',
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -16,6 +19,11 @@ export const SolanaAddressPill: React.FC<SolanaAddressPillProps> = ({
     address.length > 12
       ? `${address.slice(0, 4)}...${address.slice(-4)}`
       : address;
+
+  const explorerUrl =
+    explorerCluster === null
+      ? `https://explorer.solana.com/address/${address}`
+      : `https://explorer.solana.com/address/${address}?cluster=${explorerCluster}`;
 
   const handleCopy = async () => {
     try {
@@ -28,9 +36,9 @@ export const SolanaAddressPill: React.FC<SolanaAddressPillProps> = ({
   };
 
   return (
-    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-xs font-mono text-slate-300">
-      <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-      <span title={address}>{shortened}</span>
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-mono text-slate-700">
+      <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+      <span title={address} className="font-semibold">{shortened}</span>
 
       <button
         type="button"
@@ -43,11 +51,11 @@ export const SolanaAddressPill: React.FC<SolanaAddressPillProps> = ({
 
       {showExplorerLink && (
         <a
-          href={`https://explorer.solana.com/address/${address}?cluster=devnet`}
+          href={explorerUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="p-1 text-slate-400 hover:text-purple-300 transition-colors"
-          title="Ver no Solana Explorer (Devnet)"
+          title="Ver no Solana Explorer"
         >
           <ExternalLink className="w-3 h-3" />
         </a>
