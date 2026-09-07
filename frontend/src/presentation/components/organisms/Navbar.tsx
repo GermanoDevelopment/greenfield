@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, History, Settings, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, History, Settings, RefreshCw, GitPullRequest, ExternalLink } from 'lucide-react';
 import RoleSwitcher from '../molecules/RoleSwitcher';
 import { WalletButton } from '../../../components/WalletButton';
 import { useApp } from '../../context/AppContext';
@@ -8,7 +8,7 @@ import { getChainDisplayLabel } from '../../../client';
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
-  const { currentUser, resetToDefaults } = useApp();
+  const { resetToDefaults } = useApp();
   const chainLabel = getChainDisplayLabel();
 
   const navLinks = [
@@ -19,12 +19,12 @@ export const Navbar: React.FC = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-[#EEF2F6] bg-white/95 backdrop-blur-md shadow-sm">
+    <header className="sticky top-0 z-40 w-full border-b border-[#252E24] bg-[#101410]/95 backdrop-blur-md shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16">
-        {/* Linha Superior: Logo, Status da Rede, Avatar GitHub & Carteira */}
+        {/* Linha Superior: Logo, Status da Rede, Alternador de Perfis e Carteira */}
         <div className="flex items-center justify-between h-16 gap-3">
           {/* Logo & Status On-chain */}
-          <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex items-center gap-3 sm:gap-5 shrink-0">
             <Link to="/" className="flex items-center gap-2.5 group">
               <img
                 src="/Icon-only.png"
@@ -32,74 +32,81 @@ export const Navbar: React.FC = () => {
                 className="w-9 h-9 rounded-xl object-contain transform group-hover:scale-105 transition-transform"
               />
               <div className="flex flex-col">
-                <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 flex items-center gap-1.5">
+                <span className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5">
                   GREENFIELD
-                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold">
+                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-[#1B261A] text-[#28B110] border border-[#28B110]/40 font-bold">
                     USDC
                   </span>
                 </span>
-                <span className="text-[10px] text-slate-500 hidden sm:block">
+                <span className="text-[10px] text-[#889887] hidden sm:block font-medium">
                   Issue → PR → Merge → USDC
                 </span>
               </div>
             </Link>
 
-            {/* Status da Rede Solana */}
-            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-xs font-mono font-medium">
-              <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+            {/* Status da Rede Solana (Pílula com pulso ativo) */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#182017] border border-[#283426] text-[#28B110] text-xs font-mono font-medium shrink-0 whitespace-nowrap shadow-xs" title={`Conectado à rede ${chainLabel}`}>
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#28B110] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#28B110]"></span>
+              </span>
               <span>{chainLabel}</span>
             </div>
           </div>
 
-          {/* Área Direita: Avatar GitHub + RoleSwitcher + Carteira */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Avatar do Usuário Conectado ao GitHub */}
-            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-              <img
-                src={currentUser.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50'}
-                alt={currentUser.github_username}
-                className="w-5 h-5 rounded-full border border-slate-300 object-cover"
-              />
-              <span className="font-mono text-slate-700 font-semibold">
-                @{currentUser.github_username}
-              </span>
-            </div>
-
+          {/* Área Direita: RoleSwitcher unificado + Carteira Solana + Reset Demo */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             <RoleSwitcher />
             <WalletButton />
 
             <button
               onClick={() => resetToDefaults()}
-              className="text-[11px] text-slate-400 hover:text-slate-700 transition-colors hidden xl:block ml-1"
+              className="p-2 rounded-xl text-[#889887] hover:text-[#28B110] hover:bg-[#182017] border border-transparent hover:border-[#283426] transition-all hidden xl:flex items-center justify-center shrink-0 cursor-pointer"
               title="Restaurar dados iniciais do MVP"
+              aria-label="Restaurar dados iniciais do MVP"
+              type="button"
             >
-              Reset Demo
+              <RefreshCw className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Linha Inferior: 4 Abas Principais (Rolável horizontalmente no mobile) */}
-        <nav className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 border-t border-slate-100 -mx-4 px-4 sm:mx-0 sm:px-0">
-          {navLinks.map((link) => {
-            const isActive =
-              location.pathname === link.path ||
-              (link.path === '/bounties/new' && location.pathname.startsWith('/bounties/new'));
+        {/* Linha Inferior: 4 Abas Principais + Link GitHub */}
+        <nav className="flex items-center justify-between overflow-x-auto no-scrollbar py-2 border-t border-[#252E24]/70 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {navLinks.map((link) => {
+              const isActive =
+                location.pathname === link.path ||
+                (link.path === '/bounties/new' && location.pathname.startsWith('/bounties/new'));
 
-            return (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap min-h-[38px] ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                {link.icon}
-                <span>{link.label}</span>
-              </Link>
-            );
-          })}
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap min-h-[36px] ${
+                    isActive
+                      ? 'bg-[#28B110] text-[#101410] font-bold shadow-xs shadow-[#28B110]/25'
+                      : 'text-[#9EB19D] hover:text-white hover:bg-[#182017]'
+                  }`}
+                >
+                  {link.icon}
+                  <span>{link.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          <a
+            href="https://github.com/GermanoDevelopment/greenfield"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:flex items-center gap-1.5 text-xs text-[#889887] hover:text-[#28B110] px-2.5 py-1 rounded-lg hover:bg-[#182017] border border-transparent hover:border-[#283426] transition-all font-mono shrink-0"
+            title="Repositório oficial no GitHub"
+          >
+            <GitPullRequest className="w-3.5 h-3.5 text-[#28B110]" />
+            <span>GermanoDevelopment/greenfield</span>
+            <ExternalLink className="w-3 h-3 text-[#5C6E5A]" />
+          </a>
         </nav>
       </div>
     </header>

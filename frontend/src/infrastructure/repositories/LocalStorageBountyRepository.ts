@@ -1,5 +1,5 @@
 import type { IBountyRepository } from '../../core/domain/ports';
-import type { Bounty } from '../../core/domain/types';
+import type { Bounty, Proposal } from '../../core/domain/types';
 import { INITIAL_BOUNTIES, MOCK_ISSUES, MOCK_REPOSITORIES, MOCK_USERS } from '../data/mockData';
 
 const STORAGE_KEY = 'greenfield_bounties_v1';
@@ -86,7 +86,68 @@ export class LocalStorageBountyRepository implements IBountyRepository {
 
   async getByDeveloper(developerId: string): Promise<Bounty[]> {
     const list = this.getStore();
-    return list.filter((b) => b.developer_id === developerId);
+    return list.filter(
+      (b) =>
+        b.developer_id === developerId ||
+        b.proposals?.some((p) => p.developer_id === developerId)
+    );
+  }
+
+  async addProposal(bountyId: string, proposal: Proposal): Promise<Bounty> {
+    const list = this.getStore();
+    const index = list.findIndex((b) => b.id === bountyId);
+    if (index === -1) throw new Error(`Bounty ${bountyId} não encontrada.`);
+
+    const current = list[index];
+    const proposals = current.proposals ? [...current.proposals] : [];
+    
+    // Evita duplicidade de proposta do mesmo desenvolvedor
+    const existingIndex = proposals.findIndex((p) => p.developer_id === proposal.developer_id);
+    if (existingIndex !== -1) {
+      proposals[existingIndex] = proposal;
+    } else {
+      proposals.push(proposal);
+    }
+
+    const updated: Bounty = {
+      ...current,
+      proposals,
+    };
+
+    list[index] = updated;
+    this.saveStore(list);
+    return updated;
+  }
+
+  async acceptProposal(bountyId: string, proposalId: string): Promise<Bounty> {
+    const list = this.getStore();
+    const index = list.findIndex((b) => b.id === bountyId);
+    if (index === -1) throw new Error(`Bounty ${bountyId} não encontrada.`);
+
+    const current = list[index];
+    if (!current.proposals) throw new Error('Esta bounty não possui propostas.');
+
+    const acceptedProposal = current.proposals.find((p) => p.id === proposalId);
+    if (!acceptedProposal) throw new Error(`Proposta ${proposalId} não encontrada.`);
+
+    const updatedProposals = current.proposals.map((p) => ({
+      ...p,
+      status: p.id === proposalId ? ('ACCEPTED' as const) : ('REJECTED' as const),
+    }));
+
+    const updated: Bounty = {
+      ...current,
+      developer_id: acceptedProposal.developer_id,
+      developer: acceptedProposal.developer,
+      proposals: updatedProposals,
+      status: 'ASSIGNED',
+      accepted_at: new Date().toISOString(),
+      github_issue_assigned: true,
+    };
+
+    list[index] = updated;
+    this.saveStore(list);
+    return updated;
   }
 
   reset(): void {

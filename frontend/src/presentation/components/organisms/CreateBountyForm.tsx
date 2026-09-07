@@ -19,7 +19,7 @@ import DesygenButton from '../atoms/DesygenButton';
 
 export const CreateBountyForm: React.FC = () => {
   const navigate = useNavigate();
-  const { treasury, gitHubService, createBounty, availableUsers } = useApp();
+  const { treasury, gitHubService, createBounty, availableUsers, toggleRepositoryApproval } = useApp();
 
   // Estado do Wizard (1, 2, 3)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -33,16 +33,18 @@ export const CreateBountyForm: React.FC = () => {
   const [selectedDevId, setSelectedDevId] = useState<string>('');
 
   const [loading, setLoading] = useState(false);
+  const [approvalLoading, setApprovalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchRepos = async () => {
+    const list = await gitHubService.listRepositories();
+    setRepositories(list);
+    if (list.length > 0 && !selectedRepoId) {
+      setSelectedRepoId(list[0].id);
+    }
+  };
+
   useEffect(() => {
-    const fetchRepos = async () => {
-      const list = await gitHubService.listRepositories();
-      setRepositories(list);
-      if (list.length > 0) {
-        setSelectedRepoId(list[0].id);
-      }
-    };
     fetchRepos();
   }, [gitHubService]);
 
@@ -58,20 +60,37 @@ export const CreateBountyForm: React.FC = () => {
     fetchIssues();
   }, [selectedRepoId, gitHubService]);
 
+  const selectedRepo = repositories.find((r) => r.id === selectedRepoId);
+  const selectedIssue = issues.find((i) => i.id === selectedIssueId);
+  const selectedDev = availableUsers.find((u) => u.id === selectedDevId);
+
+  const handleToggleApproval = async () => {
+    if (!selectedRepo) return;
+    setApprovalLoading(true);
+    try {
+      await toggleRepositoryApproval(selectedRepo.id, !selectedRepo.approved_for_round);
+      await fetchRepos();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setApprovalLoading(false);
+    }
+  };
+
   const usdcEquivalent = pointsToUsdc(points);
   const availableTreasury = treasury ? treasury.available_usdc : 0;
   const isSolvent = availableTreasury >= usdcEquivalent;
   const remainingTreasuryAfterBounty = availableTreasury - usdcEquivalent;
-
-  const selectedRepo = repositories.find((r) => r.id === selectedRepoId);
-  const selectedIssue = issues.find((i) => i.id === selectedIssueId);
-  const selectedDev = availableUsers.find((u) => u.id === selectedDevId);
 
   const handleNextStep = () => {
     setError(null);
     if (currentStep === 1) {
       if (!selectedRepoId || !selectedIssueId) {
         setError('Selecione um repositório e uma issue aberta antes de prosseguir.');
+        return;
+      }
+      if (!selectedRepo?.approved_for_round) {
+        setError('O repositório precisa estar aprovado para a rodada de contribuição antes de adicionar issues.');
         return;
       }
       setCurrentStep(2);
@@ -128,7 +147,7 @@ export const CreateBountyForm: React.FC = () => {
   return (
     <div className="flex flex-col gap-6">
       {/* 1. INDICADOR VISUAL DE ETAPAS (1 de 3, 2 de 3, 3 de 3) */}
-      <div className="flex items-center justify-between pb-6 border-b border-slate-100">
+      <div className="flex items-center justify-between pb-6 border-b border-[#252E24]">
         {[
           { step: 1, label: 'Issue', desc: 'Repositório & Tarefa' },
           { step: 2, label: 'Recompensa', desc: 'Pontos & Solvência' },
@@ -143,30 +162,30 @@ export const CreateBountyForm: React.FC = () => {
                 <div
                   className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm transition-all ${
                     isDone
-                      ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                      ? 'bg-[#28B110] text-[#141814] shadow-sm shadow-[#28B110]/30'
                       : isActive
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-4 ring-blue-50'
-                      : 'bg-slate-100 text-slate-400 border border-slate-200'
+                      ? 'bg-[#28B110] text-[#141814] shadow-md shadow-[#28B110]/30 ring-4 ring-[#28B110]/20'
+                      : 'bg-[#131A12] text-[#889887] border border-[#252E24]'
                   }`}
                 >
-                  {isDone ? <CheckCircle2 className="w-4 h-4" /> : item.step}
+                  {isDone ? <CheckCircle2 className="w-4 h-4 text-[#141814]" /> : item.step}
                 </div>
                 <div className="hidden sm:flex flex-col text-left">
                   <span
                     className={`text-xs font-bold leading-tight ${
-                      isActive ? 'text-blue-600' : isDone ? 'text-slate-900' : 'text-slate-400'
+                      isActive ? 'text-[#28B110]' : isDone ? 'text-white' : 'text-[#889887]'
                     }`}
                   >
                     {item.label}
                   </span>
-                  <span className="text-[11px] text-slate-400">{item.desc}</span>
+                  <span className="text-[11px] text-[#889887]">{item.desc}</span>
                 </div>
               </div>
 
               {idx < 2 && (
                 <div
                   className={`flex-1 h-0.5 mx-3 sm:mx-6 rounded ${
-                    currentStep > idx + 1 ? 'bg-emerald-400' : 'bg-slate-200'
+                    currentStep > idx + 1 ? 'bg-[#28B110]' : 'bg-[#252E24]'
                   }`}
                 />
               )}
@@ -180,49 +199,85 @@ export const CreateBountyForm: React.FC = () => {
         {currentStep === 1 && (
           <div className="flex flex-col gap-5 animate-fadeIn">
             <div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-white">
                 1. Selecione a Issue no Repositório
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-[#889887] mt-0.5">
                 Escolha o projeto sincronizado via GitHub OAuth e a issue aberta para financiar.
               </p>
             </div>
 
             {/* Repositório */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <GitBranch className="w-3.5 h-3.5 text-blue-600" />
-                <span>Repositório Autorizado</span>
-              </label>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#889887] flex items-center gap-1.5">
+                  <GitBranch className="w-3.5 h-3.5 text-[#28B110]" />
+                  <span>Repositório</span>
+                </label>
+                {selectedRepo && (
+                  <span
+                    className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                      selectedRepo.approved_for_round
+                        ? 'bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/40'
+                        : 'bg-amber-950/40 text-amber-300 border border-amber-800/60'
+                    }`}
+                  >
+                    {selectedRepo.approved_for_round ? 'Aprovado para a Rodada' : 'Não Aprovado na Rodada'}
+                  </span>
+                )}
+              </div>
+
               <select
                 value={selectedRepoId}
                 onChange={(e) => setSelectedRepoId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm font-medium focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-h-[44px]"
+                className="w-full bg-[#131A12] border border-[#252E24] rounded-xl px-4 py-3 text-[#D2DFD1] text-sm font-medium focus:outline-none focus:border-[#28B110] transition-all cursor-pointer min-h-[44px]"
               >
                 {repositories.map((repo) => (
-                  <option key={repo.id} value={repo.id}>
-                    {repo.owner}/{repo.name} ({repo.default_branch || 'main'})
+                  <option key={repo.id} value={repo.id} className="bg-[#131A12] text-[#D2DFD1]">
+                    {repo.owner}/{repo.name} ({repo.approved_for_round ? '✓ Rodada Ativa' : 'Pendente'})
                   </option>
                 ))}
               </select>
-              <span className="text-[11px] text-slate-400">
-                Apenas repositórios nos quais você possui permissão de escrita/administração.
-              </span>
+
+              {/* Botão de Gestão de Aprovação do Repositório */}
+              {selectedRepo && (
+                <div className="p-3 rounded-xl bg-[#131A12] border border-[#252E24] flex items-center justify-between gap-3 text-xs">
+                  <span className="text-[#889887]">
+                    {selectedRepo.approved_for_round
+                      ? 'Este repositório está elegível para receber financiamento de issues.'
+                      : 'O mantenedor precisa aprovar a inclusão deste repositório na rodada.'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleToggleApproval}
+                    disabled={approvalLoading}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors shrink-0 ${
+                      selectedRepo.approved_for_round
+                        ? 'bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60'
+                        : 'bg-[#28B110] hover:brightness-110 text-[#141814]'
+                    }`}
+                  >
+                    {selectedRepo.approved_for_round
+                      ? 'Remover da Rodada'
+                      : 'Aprovar Repositório'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Issue */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <CircleDot className="w-3.5 h-3.5 text-emerald-600" />
+              <label className="text-xs font-bold uppercase tracking-wider text-[#889887] flex items-center gap-1.5">
+                <CircleDot className="w-3.5 h-3.5 text-[#28B110]" />
                 <span>Issue Aberta</span>
               </label>
               <select
                 value={selectedIssueId}
                 onChange={(e) => setSelectedIssueId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm font-medium focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-h-[44px]"
+                className="w-full bg-[#131A12] border border-[#252E24] rounded-xl px-4 py-3 text-[#D2DFD1] text-sm font-medium focus:outline-none focus:border-[#28B110] transition-all cursor-pointer min-h-[44px]"
               >
                 {issues.map((issue) => (
-                  <option key={issue.id} value={issue.id}>
+                  <option key={issue.id} value={issue.id} className="bg-[#131A12] text-[#D2DFD1]">
                     #{issue.number} — {issue.title}
                   </option>
                 ))}
@@ -234,7 +289,7 @@ export const CreateBountyForm: React.FC = () => {
               <button
                 type="button"
                 onClick={handleNextStep}
-                className="w-full sm:w-auto min-h-[44px] px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer interactive-btn"
+                className="w-full sm:w-auto min-h-[44px] px-6 py-3 rounded-xl bg-[#28B110] hover:brightness-110 text-[#141814] font-bold text-xs flex items-center justify-center gap-2 shadow-sm shadow-[#28B110]/20 transition-all cursor-pointer interactive-btn"
               >
                 <span>Definir Recompensa</span>
                 <ArrowRight className="w-4 h-4" />
@@ -247,10 +302,10 @@ export const CreateBountyForm: React.FC = () => {
         {currentStep === 2 && (
           <div className="flex flex-col gap-5 animate-fadeIn">
             <div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-white">
                 2. Recompensa & Conversão USDC
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-[#889887] mt-0.5">
                 Defina a pontuação de esforço. O sistema calcula a garantia em USDC em tempo real.
               </p>
             </div>
@@ -259,11 +314,11 @@ export const CreateBountyForm: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                    <Coins className="w-3.5 h-3.5 text-amber-600" />
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#889887] flex items-center gap-1.5">
+                    <Coins className="w-3.5 h-3.5 text-[#28B110]" />
                     <span>Pontos Greenfield</span>
                   </label>
-                  <span className="text-[11px] font-mono font-semibold text-blue-600">
+                  <span className="text-[11px] font-mono font-semibold text-[#28B110]">
                     100 pts = 1 USDC
                   </span>
                 </div>
@@ -273,17 +328,17 @@ export const CreateBountyForm: React.FC = () => {
                   min="100"
                   value={points}
                   onChange={(e) => setPoints(Math.max(100, Number(e.target.value) || 0))}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 font-mono text-base font-bold focus:outline-none focus:border-blue-500 focus:bg-white min-h-[44px]"
+                  className="w-full bg-[#131A12] border border-[#252E24] rounded-xl px-4 py-3 text-white font-mono text-base font-bold focus:outline-none focus:border-[#28B110] min-h-[44px]"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#889887]">
                   Garantia em USDC On-Chain
                 </label>
-                <div className="w-full bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-blue-700 font-mono text-xl font-black flex items-center justify-between min-h-[44px]">
+                <div className="w-full bg-[#131A12] border border-[#28B110]/40 rounded-xl px-4 py-3 text-[#28B110] font-mono text-xl font-black flex items-center justify-between min-h-[44px]">
                   <span>${usdcEquivalent.toFixed(2)} USDC</span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/30">
                     Solana Escrow
                   </span>
                 </div>
@@ -294,15 +349,15 @@ export const CreateBountyForm: React.FC = () => {
             <div
               className={`p-4 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                 isSolvent
-                  ? 'bg-emerald-50/70 border-emerald-300 text-emerald-800'
-                  : 'bg-rose-50 border-rose-300 text-rose-800'
+                  ? 'bg-[#182017] border-[#28B110]/40 text-[#D2DFD1]'
+                  : 'bg-rose-950/40 border-rose-800/60 text-rose-300'
               }`}
             >
               <div className="flex items-start gap-2.5">
                 {isSolvent ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-5 h-5 text-[#28B110] shrink-0 mt-0.5" />
                 ) : (
-                  <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                 )}
                 <div>
                   <span className="font-bold block">
@@ -310,12 +365,12 @@ export const CreateBountyForm: React.FC = () => {
                   </span>
                   <span className="text-xs opacity-90">
                     Saldo disponível no Tesouro:{' '}
-                    <strong className="font-mono">${availableTreasury.toFixed(2)} USDC</strong>
+                    <strong className="font-mono text-white">${availableTreasury.toFixed(2)} USDC</strong>
                     {isSolvent && (
                       <span>
                         {' '}
                         • Restará após criação:{' '}
-                        <strong className="font-mono">
+                        <strong className="font-mono text-[#28B110]">
                           ${remainingTreasuryAfterBounty.toFixed(2)} USDC
                         </strong>
                       </span>
@@ -327,7 +382,7 @@ export const CreateBountyForm: React.FC = () => {
               <span
                 className={`font-mono text-xs font-black uppercase px-3 py-1.5 rounded-lg shrink-0 text-center ${
                   isSolvent
-                    ? 'bg-emerald-600 text-white shadow-sm'
+                    ? 'bg-[#28B110] text-[#141814] shadow-sm'
                     : 'bg-rose-600 text-white shadow-sm'
                 }`}
               >
@@ -340,7 +395,7 @@ export const CreateBountyForm: React.FC = () => {
               <button
                 type="button"
                 onClick={handlePrevStep}
-                className="min-h-[44px] px-5 py-3 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="min-h-[44px] px-5 py-3 rounded-xl border border-[#252E24] bg-[#131A12] hover:bg-[#20291e] text-[#D2DFD1] font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Voltar</span>
@@ -350,7 +405,7 @@ export const CreateBountyForm: React.FC = () => {
                 type="button"
                 onClick={handleNextStep}
                 disabled={!isSolvent}
-                className="min-h-[44px] px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer interactive-btn"
+                className="min-h-[44px] px-6 py-3 rounded-xl bg-[#28B110] hover:brightness-110 disabled:bg-[#131A12] disabled:text-[#889887]/40 disabled:cursor-not-allowed text-[#141814] font-bold text-xs flex items-center gap-2 shadow-sm shadow-[#28B110]/20 transition-all cursor-pointer interactive-btn"
               >
                 <span>Avançar para Atribuição</span>
                 <ArrowRight className="w-4 h-4" />
@@ -363,71 +418,71 @@ export const CreateBountyForm: React.FC = () => {
         {currentStep === 3 && (
           <div className="flex flex-col gap-5 animate-fadeIn">
             <div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-white">
                 3. Atribuição & Confirmação Final
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-[#889887] mt-0.5">
                 Revise os termos da recompensa e assine a transação sem custódia para reservar o valor.
               </p>
             </div>
 
             {/* Atribuição de Desenvolvedor */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-blue-600" />
-                <span>Atribuir Desenvolvedor (Opcional)</span>
+              <label className="text-xs font-bold uppercase tracking-wider text-[#889887] flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-[#28B110]" />
+                <span>Atribuição Direta (Opcional)</span>
               </label>
               <select
                 value={selectedDevId}
                 onChange={(e) => setSelectedDevId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm font-medium focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-h-[44px]"
+                className="w-full bg-[#131A12] border border-[#252E24] rounded-xl px-4 py-3 text-[#D2DFD1] text-sm font-medium focus:outline-none focus:border-[#28B110] transition-all cursor-pointer min-h-[44px]"
               >
-                <option value="">Deixar aberto para atribuição posterior</option>
+                <option value="" className="bg-[#131A12] text-[#D2DFD1]">Deixar aberto para receber propostas de desenvolvedores</option>
                 {developers.map((dev) => (
-                  <option key={dev.id} value={dev.id}>
+                  <option key={dev.id} value={dev.id} className="bg-[#131A12] text-[#D2DFD1]">
                     @{dev.github_username} ({dev.wallet_address.slice(0, 4)}...
                     {dev.wallet_address.slice(-4)})
                   </option>
                 ))}
               </select>
-              <span className="text-[11px] text-slate-400">
-                <strong>Invariante 2:</strong> Assim que atribuído, o valor torna-se imutável e só poderá ser resgatado após o PR mergeado.
+              <span className="text-[11px] text-[#889887]">
+                Caso deixe em aberto, a issue entrará com status <strong>Propostas Abertas</strong> e você receberá as propostas dos interessados para aprovar via API do GitHub.
               </span>
             </div>
 
             {/* Card de Resumo Executivo */}
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col gap-3">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <span className="text-xs font-bold uppercase text-slate-500">
+            <div className="p-5 rounded-2xl bg-[#131A12] border border-[#252E24] flex flex-col gap-3">
+              <div className="flex items-center justify-between pb-3 border-b border-[#252E24]">
+                <span className="text-xs font-bold uppercase text-[#889887]">
                   Resumo da Bounty
                 </span>
-                <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/30">
                   Devnet Escrow
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <span className="text-slate-400 block">Issue:</span>
-                  <span className="font-semibold text-slate-900">
+                  <span className="text-[#889887] block">Issue:</span>
+                  <span className="font-semibold text-white">
                     #{selectedIssue?.number} {selectedIssue?.title}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Repositório:</span>
-                  <span className="font-mono text-slate-700">
+                  <span className="text-[#889887] block">Repositório:</span>
+                  <span className="font-mono text-[#D2DFD1]">
                     {selectedRepo?.owner}/{selectedRepo?.name}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Valor Garantido:</span>
-                  <span className="font-bold text-emerald-600 text-sm">
+                  <span className="text-[#889887] block">Valor Garantido:</span>
+                  <span className="font-bold text-[#28B110] text-sm">
                     ${usdcEquivalent} USDC ({points.toLocaleString()} pontos)
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Desenvolvedor:</span>
-                  <span className="font-semibold text-slate-800">
+                  <span className="text-[#889887] block">Desenvolvedor:</span>
+                  <span className="font-semibold text-[#D2DFD1]">
                     {selectedDev ? `@${selectedDev.github_username}` : 'Em aberto'}
                   </span>
                 </div>
@@ -440,7 +495,7 @@ export const CreateBountyForm: React.FC = () => {
                 type="button"
                 onClick={handlePrevStep}
                 disabled={loading}
-                className="min-h-[44px] px-5 py-3 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="min-h-[44px] px-5 py-3 rounded-xl border border-[#252E24] bg-[#131A12] hover:bg-[#20291e] text-[#D2DFD1] font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Voltar</span>
@@ -452,7 +507,7 @@ export const CreateBountyForm: React.FC = () => {
                 size="lg"
                 isLoading={loading}
                 disabled={!isSolvent}
-                className="flex-1 min-h-[44px] font-bold shadow-md shadow-blue-500/20 cursor-pointer"
+                className="flex-1 min-h-[44px] font-bold shadow-md shadow-[#28B110]/20 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Publicar Bounty & Reservar ${usdcEquivalent} USDC</span>

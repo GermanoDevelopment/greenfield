@@ -7,14 +7,12 @@ interface BountyStateStepperProps {
 }
 
 const PRIMARY_STEPS: { status: BountyStatus; label: string; desc: string }[] = [
-  { status: 'DRAFT', label: '1. Criação', desc: 'Issue selecionada' },
-  { status: 'FUNDED', label: '2. Funded', desc: 'Tesouro reservado' },
-  { status: 'ASSIGNED', label: '3. Assigned', desc: 'Dev atribuído (valor imutável)' },
-  { status: 'IN_PROGRESS', label: '4. In Progress', desc: 'Desenvolvimento' },
-  { status: 'PR_OPEN', label: '5. PR Open', desc: 'PR aberto' },
-  { status: 'MERGED', label: '6. Merged', desc: 'Merge confirmado' },
-  { status: 'CLAIMABLE', label: '7. Claimable', desc: 'Pronto para saque' },
-  { status: 'CLAIMED', label: '8. Claimed', desc: 'USDC na wallet' },
+  { status: 'OPEN_FOR_PROPOSALS', label: '1. Propostas', desc: 'Devs submetem propostas' },
+  { status: 'ASSIGNED', label: '2. Atribuído', desc: 'Atribuição via GitHub API' },
+  { status: 'IN_PROGRESS', label: '3. Em Curso', desc: 'Desenvolvimento' },
+  { status: 'PR_OPEN', label: '4. PR Aberto', desc: 'Aguardando revisão' },
+  { status: 'MERGED', label: '5. Merge', desc: 'Merge pelo mantenedor' },
+  { status: 'CLAIMED', label: '6. Pago', desc: 'USDC liquidado via Solana' },
 ];
 
 export const BountyStateStepper: React.FC<BountyStateStepperProps> = ({ currentStatus }) => {
@@ -89,10 +87,9 @@ export const BountyStateStepper: React.FC<BountyStateStepperProps> = ({ currentS
       )}
 
       <div className="mt-4 pt-3 border-t border-slate-800 flex items-center gap-2 text-xs text-slate-400">
-        <span className="font-semibold text-emerald-400">Regra de ouro:</span>
+        <span className="font-semibold text-emerald-400">Fluxo automatizado:</span>
         <span>
-          Apenas o <strong>Merge</strong> do PR libera a transição para <code>CLAIMABLE</code>.
-          Abrir o PR não liquida recompensa.
+          O desenvolvedor submete a proposta, o mantenedor atribui via API do GitHub e, após o <strong>Merge</strong> do PR, a plataforma liquida o pagamento em USDC diretamente na wallet Solana.
         </span>
       </div>
     </div>

@@ -11,10 +11,10 @@ export const Card: React.FC<CardProps> = ({
   ...props
 }) => {
   const variantStyles = {
-    default: 'bg-white border-[#EEF2F6] shadow-card text-ink-heading hover:shadow-hover',
-    highlight: 'bg-white border-blue-200 shadow-card text-ink-heading hover:border-blue-400 hover:shadow-hover',
-    alert: 'bg-amber-50/40 border-amber-300 shadow-card text-ink-heading',
-    muted: 'bg-slate-50 border-slate-200 text-ink-body',
+    default: 'bg-[#182017] border-[#252E24] shadow-card text-[#D2DFD1] hover:border-[#28B110]/40 hover:shadow-hover',
+    highlight: 'bg-[#182017] border-[#28B110]/50 shadow-card text-[#D2DFD1] hover:border-[#28B110] hover:shadow-hover',
+    alert: 'bg-amber-950/30 border-amber-800/60 shadow-card text-amber-200',
+    muted: 'bg-[#131A12] border-[#252E24] text-[#889887]',
   }[variant];
 
   return (

@@ -36,8 +36,8 @@ export const SolanaAddressPill: React.FC<SolanaAddressPillProps> = ({
   };
 
   return (
-    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-mono text-slate-700">
-      <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#131A12] border border-[#252E24] text-xs font-mono text-[#D2DFD1]">
+      <span className="w-1.5 h-1.5 rounded-full bg-[#28B110]" />
       <span title={address} className="font-semibold">{shortened}</span>
 
       <button

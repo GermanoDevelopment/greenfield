@@ -18,10 +18,10 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 }) => {
   return (
     <div
-      className={`rounded-2xl border bg-white p-6 transition-all duration-200 interactive-card flex flex-col justify-between ${
+      className={`rounded-2xl border bg-[#182017] p-6 transition-all duration-200 interactive-card flex flex-col justify-between ${
         isAlert
-          ? 'border-amber-400 bg-amber-50/20 shadow-card ring-1 ring-amber-400/30'
-          : 'border-[#EEF2F6] shadow-card'
+          ? 'border-amber-500/50 bg-amber-950/20 shadow-card ring-1 ring-amber-500/30'
+          : 'border-[#252E24] shadow-card'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -29,23 +29,23 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           {icon && (
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                isAlert ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-600'
+                isAlert ? 'bg-amber-900/40 text-amber-400' : 'bg-[#1E281C] text-[#28B110]'
               }`}
             >
               <div className="w-6 h-6 flex items-center justify-center">{icon}</div>
             </div>
           )}
-          <span className="text-xs font-medium text-slate-500 tracking-wide">
+          <span className="text-xs font-semibold text-[#889887] tracking-wide">
             {label}
           </span>
         </div>
       </div>
 
       <div className="mt-4">
-        <div className="text-[2rem] font-bold tracking-tight text-slate-900 leading-none font-sans">
+        <div className="text-[2rem] font-black tracking-tight text-white leading-none font-sans">
           {value}
         </div>
-        {subtext && <p className="mt-1.5 text-xs text-slate-500">{subtext}</p>}
+        {subtext && <p className="mt-1.5 text-xs text-[#889887]">{subtext}</p>}
       </div>
     </div>
   );

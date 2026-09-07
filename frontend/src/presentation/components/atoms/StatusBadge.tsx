@@ -16,23 +16,34 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5';
 
   switch (status) {
+    case 'OPEN_FOR_PROPOSALS':
+    case 'FUNDED':
+      return (
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full bg-violet-950/40 text-violet-300 border border-violet-800/60 font-medium ${sizeClasses}`}
+        >
+          <Clock className={`${iconSize} text-violet-400`} />
+          <span>Propostas Abertas</span>
+        </span>
+      );
+
     case 'IN_PROGRESS':
     case 'ASSIGNED':
       return (
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-300 ${sizeClasses}`}
+          className={`inline-flex items-center gap-1.5 rounded-full bg-amber-950/40 text-amber-300 border border-amber-800/60 ${sizeClasses}`}
         >
-          <Loader2 className={`${iconSize} animate-spin text-amber-500`} />
-          <span>In Progress</span>
+          <Loader2 className={`${iconSize} animate-spin text-amber-400`} />
+          <span>{status === 'ASSIGNED' ? 'Atribuído' : 'In Progress'}</span>
         </span>
       );
 
     case 'PR_OPEN':
       return (
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-300 ${sizeClasses}`}
+          className={`inline-flex items-center gap-1.5 rounded-full bg-sky-950/40 text-sky-300 border border-sky-800/60 ${sizeClasses}`}
         >
-          <GitPullRequest className={`${iconSize} text-blue-500`} />
+          <GitPullRequest className={`${iconSize} text-sky-400`} />
           <span>PR Open</span>
         </span>
       );
@@ -40,9 +51,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
     case 'CLAIMABLE':
       return (
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-400 font-bold ${sizeClasses} shadow-sm`}
+          className={`inline-flex items-center gap-1.5 rounded-full bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/40 font-bold ${sizeClasses} shadow-sm`}
         >
-          <Coins className={`${iconSize} text-emerald-600 animate-bounce`} />
+          <Coins className={`${iconSize} text-[#28B110] animate-bounce`} />
           <span>Claimable</span>
         </span>
       );
@@ -50,9 +61,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
     case 'CLAIMED':
       return (
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-slate-600 border border-slate-300 ${sizeClasses}`}
+          className={`inline-flex items-center gap-1.5 rounded-full bg-[#131A12] text-[#889887] border border-[#252E24] ${sizeClasses}`}
         >
-          <CheckCheck className={`${iconSize} text-slate-500`} />
+          <CheckCheck className={`${iconSize} text-[#28B110]`} />
           <span>Pago</span>
         </span>
       );
@@ -62,9 +73,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
     case 'VERIFICATION_FAILED':
       return (
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-300 ${sizeClasses}`}
+          className={`inline-flex items-center gap-1.5 rounded-full bg-rose-950/40 text-rose-300 border border-rose-800/60 ${sizeClasses}`}
         >
-          <AlertCircle className={`${iconSize} text-rose-500`} />
+          <AlertCircle className={`${iconSize} text-rose-400`} />
           <span>{status === 'CANCELLED' ? 'Cancelado' : 'Falha'}</span>
         </span>
       );
@@ -72,7 +83,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
     default:
       return (
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 ${sizeClasses}`}
+          className={`inline-flex items-center gap-1.5 rounded-full bg-[#131A12] text-[#889887] border border-[#252E24] ${sizeClasses}`}
         >
           <Clock className={iconSize} />
           <span>{status}</span>

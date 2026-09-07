@@ -55,6 +55,7 @@ export const MOCK_REPOSITORIES: Repository[] = [
     github_url: 'https://github.com/GermanoDevelopment/greenfield',
     maintainer_user_id: 'user-maintainer',
     default_branch: 'main',
+    approved_for_round: true,
   },
   {
     id: 'repo-solana-helpers',
@@ -64,6 +65,7 @@ export const MOCK_REPOSITORIES: Repository[] = [
     github_url: 'https://github.com/GermanoDevelopment/solana-developer-tools',
     maintainer_user_id: 'user-maintainer',
     default_branch: 'master',
+    approved_for_round: false,
   },
 ];
 
@@ -118,6 +120,31 @@ export const MOCK_ISSUES: Issue[] = [
  */
 export const INITIAL_BOUNTIES: Bounty[] = [
   {
+    id: 'bounty-135',
+    issue_id: 'issue-135',
+    issue: MOCK_ISSUES[3],
+    repository_id: 'repo-greenfield',
+    repository: MOCK_REPOSITORIES[0],
+    maintainer_id: 'user-maintainer',
+    maintainer: MOCK_USERS.maintainer,
+    points: 7500,
+    usdc_amount: 75,
+    status: 'OPEN_FOR_PROPOSALS',
+    created_at: '2026-03-05T09:00:00Z',
+    proposals: [
+      {
+        id: 'prop-1',
+        bounty_id: 'bounty-135',
+        developer_id: 'user-bob',
+        developer: MOCK_USERS.bob,
+        cover_letter: 'Tenho experiência com logs de transação Solana e biblioteca de telemetria. Proponho interceptar erros de RPC com formatação estruturada.',
+        estimated_days: 2,
+        status: 'PENDING',
+        created_at: '2026-03-05T11:20:00Z',
+      },
+    ],
+  },
+  {
     id: 'bounty-123',
     issue_id: 'issue-123',
     issue: MOCK_ISSUES[0],
@@ -132,6 +159,19 @@ export const INITIAL_BOUNTIES: Bounty[] = [
     status: 'IN_PROGRESS',
     created_at: '2026-03-01T10:00:00Z',
     accepted_at: '2026-03-01T14:30:00Z',
+    github_issue_assigned: true,
+    proposals: [
+      {
+        id: 'prop-alice-123',
+        bounty_id: 'bounty-123',
+        developer_id: 'user-alice',
+        developer: MOCK_USERS.alice,
+        cover_letter: 'Implementação de verificação Ed25519 em Rust/Wasm integrada ao client TS.',
+        estimated_days: 3,
+        status: 'ACCEPTED',
+        created_at: '2026-03-01T11:00:00Z',
+      },
+    ],
   },
   {
     id: 'bounty-127',
@@ -148,6 +188,7 @@ export const INITIAL_BOUNTIES: Bounty[] = [
     status: 'PR_OPEN',
     created_at: '2026-03-02T09:00:00Z',
     accepted_at: '2026-03-02T11:00:00Z',
+    github_issue_assigned: true,
     pr: {
       id: 'pr-45',
       bounty_id: 'bounty-127',
@@ -158,6 +199,18 @@ export const INITIAL_BOUNTIES: Bounty[] = [
       author_github_username: 'bob-builder',
       merged: false,
     },
+    proposals: [
+      {
+        id: 'prop-bob-127',
+        bounty_id: 'bounty-127',
+        developer_id: 'user-bob',
+        developer: MOCK_USERS.bob,
+        cover_letter: 'Fallback com exponential backoff e round-robin entre múltiplos RPCs da Devnet.',
+        estimated_days: 2,
+        status: 'ACCEPTED',
+        created_at: '2026-03-02T09:30:00Z',
+      },
+    ],
   },
   {
     id: 'bounty-131',
@@ -175,6 +228,7 @@ export const INITIAL_BOUNTIES: Bounty[] = [
     created_at: '2026-03-03T08:00:00Z',
     accepted_at: '2026-03-03T10:00:00Z',
     merged_at: '2026-03-04T16:20:00Z',
+    github_issue_assigned: true,
     pr: {
       id: 'pr-48',
       bounty_id: 'bounty-131',
@@ -212,6 +266,7 @@ export const INITIAL_BOUNTIES: Bounty[] = [
     accepted_at: '2026-02-20T12:00:00Z',
     merged_at: '2026-02-22T15:00:00Z',
     claimed_at: '2026-02-22T15:30:00Z',
+    github_issue_assigned: true,
     pr: {
       id: 'pr-39',
       bounty_id: 'bounty-historic-1',

@@ -6,6 +6,7 @@
 export type BountyStatus =
   | 'DRAFT'
   | 'FUNDED'
+  | 'OPEN_FOR_PROPOSALS'
   | 'ASSIGNED'
   | 'IN_PROGRESS'
   | 'PR_OPEN'
@@ -47,6 +48,7 @@ export interface Repository {
   github_url: string;
   maintainer_user_id: string;
   default_branch?: string;
+  approved_for_round: boolean;
 }
 
 export interface Issue {
@@ -83,6 +85,19 @@ export interface Claim {
   created_at: string;
 }
 
+export type ProposalStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+export interface Proposal {
+  id: string;
+  bounty_id: string;
+  developer_id: string;
+  developer?: User;
+  cover_letter: string;
+  estimated_days: number;
+  status: ProposalStatus;
+  created_at: string;
+}
+
 export interface Bounty {
   id: string;
   issue_id: string;
@@ -102,6 +117,8 @@ export interface Bounty {
   claimed_at?: string;
   pr?: PullRequest;
   claim?: Claim;
+  proposals?: Proposal[];
+  github_issue_assigned?: boolean;
 }
 
 export interface Treasury {

@@ -30,6 +30,7 @@ export const MaintainerDashboard: React.FC = () => {
 
   const filteredBounties = bounties.filter((b) => {
     if (filterStatus === 'ALL') return true;
+    if (filterStatus === 'OPEN_FOR_PROPOSALS') return b.status === 'OPEN_FOR_PROPOSALS' || b.status === 'FUNDED';
     if (filterStatus === 'IN_PROGRESS') return b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED';
     if (filterStatus === 'PR_OPEN') return b.status === 'PR_OPEN';
     if (filterStatus === 'CLAIMABLE') return b.status === 'CLAIMABLE';
@@ -81,28 +82,29 @@ export const MaintainerDashboard: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+            <h2 className="text-xl font-bold text-white tracking-tight">
               Últimas Recompensas
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-[#889887] mt-0.5">
               Acompanhe as movimentações mais recentes e aprove merges para liberar pagamentos.
             </p>
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
             {/* Filtro por estado */}
-            <div className="flex items-center gap-1.5 bg-white border border-slate-200 shadow-sm rounded-xl px-3 py-2 text-xs text-slate-600">
-              <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex items-center gap-1.5 bg-[#182017] border border-[#252E24] shadow-sm rounded-xl px-3 py-2 text-xs text-[#D2DFD1]">
+              <Filter className="w-3.5 h-3.5 text-[#889887]" />
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="bg-transparent text-xs text-slate-700 font-medium focus:outline-none cursor-pointer"
+                className="bg-[#182017] text-xs text-[#D2DFD1] font-medium focus:outline-none cursor-pointer"
               >
-                <option value="ALL">Todos os Estados</option>
-                <option value="IN_PROGRESS">Em Desenvolvimento</option>
-                <option value="PR_OPEN">Aguardando Merge (PR Open)</option>
-                <option value="CLAIMABLE">Pronto para Resgate</option>
-                <option value="CLAIMED">Concluídos (Pago)</option>
+                <option value="ALL" className="bg-[#182017] text-[#D2DFD1]">Todos os Estados</option>
+                <option value="OPEN_FOR_PROPOSALS" className="bg-[#182017] text-[#D2DFD1]">Propostas Abertas</option>
+                <option value="IN_PROGRESS" className="bg-[#182017] text-[#D2DFD1]">Em Desenvolvimento</option>
+                <option value="PR_OPEN" className="bg-[#182017] text-[#D2DFD1]">Aguardando Merge (PR Open)</option>
+                <option value="CLAIMABLE" className="bg-[#182017] text-[#D2DFD1]">Pronto para Resgate</option>
+                <option value="CLAIMED" className="bg-[#182017] text-[#D2DFD1]">Concluídos (Pago)</option>
               </select>
             </div>
 
@@ -126,10 +128,10 @@ export const MaintainerDashboard: React.FC = () => {
         <div className="flex items-center justify-center pt-2">
           <Link
             to="/history"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-sm transition-colors interactive-btn"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#252E24] bg-[#182017] hover:bg-[#20291e] text-[#D2DFD1] font-semibold text-xs shadow-sm transition-colors interactive-btn"
           >
             <span>Ver todas as movimentações no Histórico Completo</span>
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+            <ArrowRight className="w-3.5 h-3.5 text-[#889887]" />
           </Link>
         </div>
       </div>

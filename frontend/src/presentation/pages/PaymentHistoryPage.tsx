@@ -40,50 +40,49 @@ export const PaymentHistoryPage: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto">
       {/* Cabeçalho do Histórico */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#252E24] pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <History className="w-7 h-7 text-blue-600" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex items-center gap-2.5">
+            <History className="w-7 h-7 text-[#28B110]" />
             <span>Histórico de Pagamentos On-Chain</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-[#889887] mt-1">
             Registro imutável e transparente de transações e recompensas liquidadas na rede Solana Devnet.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-xs font-mono font-medium self-start sm:self-auto">
-          <ShieldCheck className="w-4 h-4 text-purple-600" />
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-950/40 border border-purple-800/60 text-purple-300 text-xs font-mono font-medium self-start sm:self-auto">
+          <ShieldCheck className="w-4 h-4 text-purple-400" />
           <span>{claimedCount} Liquidados On-Chain</span>
         </div>
       </div>
-
-      {/* Barra de Filtros e Busca */}
+            {/* Barra de Filtros e Busca */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Campo de Busca */}
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#889887] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Buscar por issue, dev, repo ou hash..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 shadow-sm min-h-[44px]"
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#182017] border border-[#252E24] text-xs text-[#D2DFD1] placeholder:text-[#889887] focus:outline-none focus:border-[#28B110] shadow-sm min-h-[44px]"
           />
         </div>
 
         {/* Dropdown de Filtros (Todos, Pagos, Cancelados, Em aberto) */}
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs shadow-sm self-start sm:self-auto min-h-[44px]">
-          <Filter className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-slate-500 font-medium">Status:</span>
+        <div className="flex items-center gap-2 bg-[#182017] border border-[#252E24] rounded-xl px-3 py-2 text-xs shadow-sm self-start sm:self-auto min-h-[44px]">
+          <Filter className="w-3.5 h-3.5 text-[#889887]" />
+          <span className="text-[#889887] font-medium">Status:</span>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="bg-transparent text-xs text-slate-800 font-bold focus:outline-none cursor-pointer"
+            className="bg-[#182017] text-xs text-[#D2DFD1] font-bold focus:outline-none cursor-pointer"
           >
-            <option value="ALL">Todos os Registros</option>
-            <option value="CLAIMED">Pagos (On-chain)</option>
-            <option value="OPEN">Em Aberto / Em Andamento</option>
-            <option value="CANCELLED">Cancelados</option>
+            <option value="ALL" className="bg-[#182017] text-[#D2DFD1]">Todos os Registros</option>
+            <option value="CLAIMED" className="bg-[#182017] text-[#D2DFD1]">Pagos (On-chain)</option>
+            <option value="OPEN" className="bg-[#182017] text-[#D2DFD1]">Em Aberto / Em Andamento</option>
+            <option value="CANCELLED" className="bg-[#182017] text-[#D2DFD1]">Cancelados</option>
           </select>
         </div>
       </div>
@@ -100,17 +99,17 @@ export const PaymentHistoryPage: React.FC = () => {
               return (
                 <div
                   key={bounty.id}
-                  className="rounded-2xl border border-[#EEF2F6] bg-white p-4 shadow-card flex flex-col gap-3 interactive-card"
+                  className="rounded-2xl border border-[#252E24] bg-[#182017] p-4 shadow-card flex flex-col gap-3 interactive-card"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="font-mono text-blue-600 font-bold text-xs">
+                      <span className="font-mono text-[#28B110] font-bold text-xs">
                         #{bounty.issue?.number}
                       </span>
-                      <h4 className="font-semibold text-slate-900 text-sm line-clamp-1 mt-0.5">
+                      <h4 className="font-semibold text-white text-sm line-clamp-1 mt-0.5">
                         {bounty.issue?.title}
                       </h4>
-                      <span className="text-[11px] text-slate-400 font-mono">
+                      <span className="text-[11px] text-[#889887] font-mono">
                         {bounty.repository?.name}
                       </span>
                     </div>
@@ -118,32 +117,33 @@ export const PaymentHistoryPage: React.FC = () => {
                     <StatusBadge status={bounty.status} size="sm" />
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                    <span className="text-slate-500">Desenvolvedor:</span>
-                    <span className="font-semibold text-slate-800">
+                  <div className="flex items-center justify-between pt-2 border-t border-[#252E24] text-xs">
+                    <span className="text-[#889887]">Desenvolvedor:</span>
+                    <span className="font-semibold text-[#D2DFD1]">
                       {bounty.developer ? `@${bounty.developer.github_username}` : 'Não atribuído'}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Valor da Recompensa:</span>
+                    <span className="text-[#889887]">Valor da Recompensa:</span>
                     <UsdcBadge amount={bounty.usdc_amount} size="sm" />
                   </div>
 
                   {claim && (
-                    <div className="p-2.5 rounded-xl bg-purple-50/50 border border-purple-100 text-[11px] font-mono flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-purple-700">
-                        <Lock className="w-3.5 h-3.5 text-purple-600" />
+                    <div className="p-2.5 rounded-xl bg-[#131A12] border border-[#252E24] text-[11px] font-mono flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-purple-400">
+                        <Lock className="w-3.5 h-3.5 text-purple-400" />
                         <span>
                           {claim.transaction_signature.slice(0, 6)}...{claim.transaction_signature.slice(-6)}
                         </span>
                       </div>
+
                       {explorerUrl && (
                         <a
                           href={explorerUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-purple-700 font-bold hover:underline"
+                          className="inline-flex items-center gap-1 text-purple-400 font-bold hover:underline"
                         >
                           Explorer <ExternalLink className="w-3 h-3" />
                         </a>
@@ -156,9 +156,9 @@ export const PaymentHistoryPage: React.FC = () => {
           </div>
 
           {/* 2. VISÃO DESKTOP (>= 600px): Tabela Clássica */}
-          <div className="hidden md:block overflow-x-auto rounded-2xl border border-[#EEF2F6] bg-white shadow-card">
-            <table className="w-full text-left text-sm text-slate-700">
-              <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-[#EEF2F6]">
+          <div className="hidden md:block overflow-x-auto rounded-2xl border border-[#252E24] bg-[#182017] shadow-card">
+            <table className="w-full text-left text-sm text-[#D2DFD1]">
+              <thead className="bg-[#131A12] text-xs font-semibold uppercase tracking-wider text-[#889887] border-b border-[#252E24]">
                 <tr>
                   <th className="px-6 py-4">Issue & Repositório</th>
                   <th className="px-6 py-4">Desenvolvedor</th>
@@ -168,22 +168,22 @@ export const PaymentHistoryPage: React.FC = () => {
                   <th className="px-6 py-4 text-right">Explorer</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#EEF2F6]">
+              <tbody className="divide-y divide-[#252E24]">
                 {filteredBounties.map((bounty) => {
                   const claim = bounty.claim;
                   const explorerUrl = claim ? solanaService.getExplorerUrl(claim.transaction_signature) : null;
 
                   return (
-                    <tr key={bounty.id} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={bounty.id} className="hover:bg-[#1E271D] transition-colors">
                       {/* Issue */}
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-900 text-xs">
+                        <div className="font-semibold text-white text-xs">
                           #{bounty.issue?.number} {bounty.issue?.title}
                         </div>
-                        <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
+                        <span className="text-[11px] text-[#889887] font-mono flex items-center gap-1 mt-0.5">
                           {bounty.repository?.name}
                           {bounty.pr && (
-                            <span className="text-purple-600 flex items-center gap-0.5 ml-1">
+                            <span className="text-purple-400 flex items-center gap-0.5 ml-1">
                               <GitPullRequest className="w-3 h-3" /> PR #{bounty.pr.number}
                             </span>
                           )}
@@ -194,13 +194,13 @@ export const PaymentHistoryPage: React.FC = () => {
                       <td className="px-6 py-4">
                         {bounty.developer ? (
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-800">
+                            <span className="text-xs font-semibold text-[#D2DFD1]">
                               @{bounty.developer.github_username}
                             </span>
                             <SolanaAddressPill address={bounty.developer.wallet_address} showExplorerLink={false} />
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Disponível</span>
+                          <span className="text-xs text-[#889887] italic">Disponível</span>
                         )}
                       </td>
 
@@ -213,16 +213,16 @@ export const PaymentHistoryPage: React.FC = () => {
                       <td className="px-6 py-4">
                         {claim ? (
                           <div
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-xs font-mono font-medium shadow-xs"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-950/40 border border-purple-800/60 text-purple-300 text-xs font-mono font-medium shadow-xs"
                             title={`Assinatura: ${claim.transaction_signature}`}
                           >
-                            <Lock className="w-3.5 h-3.5 text-purple-600" />
+                            <Lock className="w-3.5 h-3.5 text-purple-400" />
                             <span>
                               {claim.transaction_signature.slice(0, 6)}...{claim.transaction_signature.slice(-6)}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400 font-mono">—</span>
+                          <span className="text-xs text-[#889887] font-mono">—</span>
                         )}
                       </td>
 
@@ -230,7 +230,7 @@ export const PaymentHistoryPage: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1">
                           <StatusBadge status={bounty.status} size="sm" />
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-[11px] text-[#889887]">
                             {claim ? new Date(claim.created_at).toLocaleDateString() : new Date(bounty.created_at).toLocaleDateString()}
                           </span>
                         </div>
@@ -243,14 +243,14 @@ export const PaymentHistoryPage: React.FC = () => {
                             href={explorerUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-semibold transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/60 text-purple-300 text-xs font-semibold transition-colors cursor-pointer"
                             title="Ver transação imutável no Solana Explorer"
                           >
                             <span>Explorer</span>
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         ) : (
-                          <span className="text-xs text-slate-400">—</span>
+                          <span className="text-xs text-[#889887]">—</span>
                         )}
                       </td>
                     </tr>
@@ -261,7 +261,7 @@ export const PaymentHistoryPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="p-12 rounded-2xl border border-[#EEF2F6] bg-white text-center text-slate-500 shadow-card">
+        <div className="p-12 rounded-2xl border border-[#252E24] bg-[#182017] text-center text-[#889887] shadow-card">
           <p className="text-sm font-medium">Nenhum pagamento ou bounty encontrado com esses critérios.</p>
         </div>
       )}

@@ -1,4 +1,4 @@
-import type { Bounty, Claim, Issue, Repository, Treasury, User } from './types';
+import type { Bounty, Claim, Issue, Proposal, Repository, Treasury, User } from './types';
 
 export interface IBountyRepository {
   getAll(): Promise<Bounty[]>;
@@ -7,6 +7,8 @@ export interface IBountyRepository {
   update(id: string, patch: Partial<Bounty>): Promise<Bounty>;
   getByMaintainer(maintainerId: string): Promise<Bounty[]>;
   getByDeveloper(developerId: string): Promise<Bounty[]>;
+  addProposal(bountyId: string, proposal: Proposal): Promise<Bounty>;
+  acceptProposal(bountyId: string, proposalId: string): Promise<Bounty>;
 }
 
 export interface ITreasuryRepository {
@@ -27,6 +29,8 @@ export interface IGitHubService {
   listRepositories(): Promise<Repository[]>;
   listIssues(repositoryId?: string): Promise<Issue[]>;
   getIssueById(issueId: string): Promise<Issue | null>;
+  setRepositoryRoundStatus(repoId: string, approved: boolean): Promise<Repository>;
+  assignIssueToDeveloper(repoId: string, issueNumber: number, githubUsername: string): Promise<boolean>;
 }
 
 export interface ISolanaService {
@@ -37,3 +41,4 @@ export interface ISolanaService {
   ): Promise<Claim>;
   getExplorerUrl(txSignature: string): string;
 }
+

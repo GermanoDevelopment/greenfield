@@ -26,10 +26,10 @@ export const MinimalStepsOverview: React.FC = () => {
   return (
     <div className="w-full flex flex-col gap-6">
       <div className="text-center max-w-xl mx-auto">
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+        <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
           Como Funciona
         </h2>
-        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+        <p className="text-xs sm:text-sm text-[#889887] mt-1">
           Fluxo direto do repositório ao pagamento na blockchain.
         </p>
       </div>
@@ -38,22 +38,22 @@ export const MinimalStepsOverview: React.FC = () => {
         {steps.map((step) => (
           <div
             key={step.num}
-            className="p-6 rounded-2xl bg-white border border-[#EEF2F6] hover:border-blue-200 transition-all flex flex-col justify-between gap-4 shadow-card interactive-card group"
+            className="p-6 rounded-2xl bg-[#182017] border border-[#252E24] hover:border-[#28B110]/50 transition-all flex flex-col justify-between gap-4 shadow-card interactive-card group"
           >
             <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#131A12] border border-[#252E24] flex items-center justify-center">
                 {step.icon}
               </div>
-              <span className="text-2xl font-black font-mono text-slate-300 group-hover:text-blue-500/40 transition-colors">
+              <span className="text-2xl font-black font-mono text-[#334231] group-hover:text-[#28B110]/50 transition-colors">
                 {step.num}
               </span>
             </div>
 
             <div>
-              <h3 className="text-base font-bold text-slate-900 tracking-tight">
+              <h3 className="text-base font-bold text-white tracking-tight">
                 {step.title}
               </h3>
-              <p className="text-xs text-slate-500 leading-relaxed mt-1">
+              <p className="text-xs text-[#889887] leading-relaxed mt-1">
                 {step.desc}
               </p>
             </div>

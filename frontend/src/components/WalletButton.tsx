@@ -161,9 +161,9 @@ export function WalletButton() {
     return (
       <button
         disabled
-        className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-400 rounded-lg text-sm font-medium border border-slate-700 cursor-not-allowed"
+        className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#182017] text-[#889887] rounded-xl text-xs font-medium border border-[#283426] cursor-not-allowed"
       >
-        <Sparkles className="w-4 h-4 animate-spin text-emerald-400" />
+        <Sparkles className="w-3.5 h-3.5 animate-spin text-[#28B110]" />
         <span>Carregando...</span>
       </button>
     );
@@ -178,7 +178,7 @@ export function WalletButton() {
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setIsDropdownOpen((prev) => !prev)}
-          className="inline-flex items-center gap-2.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-100 rounded-lg text-sm font-medium border border-slate-700 hover:border-emerald-500/50 transition-all shadow-sm"
+          className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#182017] hover:bg-[#1E281C] text-white rounded-xl text-xs font-semibold border border-[#283426] hover:border-[#28B110]/60 transition-all shadow-xs cursor-pointer"
           type="button"
           aria-haspopup="menu"
           aria-expanded={isDropdownOpen}
@@ -186,34 +186,36 @@ export function WalletButton() {
           {walletIcon ? (
             <img src={walletIcon} alt={walletName} className="w-4 h-4 rounded-full object-contain" />
           ) : (
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-[#28B110] animate-pulse" />
           )}
-          <span className="font-mono text-xs text-emerald-400">{shortenAddress(address)}</span>
-          <ArrowRight className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-90' : ''}`} />
+          <span className="font-mono text-xs text-[#28B110] font-bold">{shortenAddress(address)}</span>
+          <svg className={`w-3.5 h-3.5 text-[#889887] transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         </button>
 
         {isDropdownOpen && (
           <div
-            className="absolute right-0 mt-2 w-64 rounded-xl bg-slate-900 border border-slate-800 shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100"
+            className="absolute right-0 mt-2 w-64 rounded-2xl bg-[#141C14] border border-[#283426] shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100"
             role="menu"
           >
-            <div className="px-4 py-2 border-b border-slate-800">
+            <div className="px-4 py-2 border-b border-[#283426]/70">
               <div className="flex items-center gap-2 mb-1">
                 {walletIcon && <img src={walletIcon} alt="" className="w-3.5 h-3.5 rounded-full" />}
-                <span className="text-xs font-semibold text-slate-200 truncate">{walletName}</span>
+                <span className="text-xs font-bold text-white truncate">{walletName}</span>
               </div>
-              <p className="text-[11px] font-mono text-slate-400 truncate">{address}</p>
+              <p className="text-[11px] font-mono text-[#889887] truncate">{address}</p>
             </div>
 
             <div className="p-1 space-y-0.5">
               <button
                 onClick={handleCopyAddress}
-                className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-left"
+                className="w-full flex items-center justify-between px-3 py-2 text-xs text-[#D2DFD1] hover:text-[#28B110] hover:bg-[#182017] rounded-xl transition-colors text-left cursor-pointer"
                 type="button"
                 role="menuitem"
               >
                 <div className="flex items-center gap-2">
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? <Check className="w-3.5 h-3.5 text-[#28B110]" /> : <Copy className="w-3.5 h-3.5 text-[#889887]" />}
                   <span>{copied ? 'Copiado!' : 'Copiar endereço'}</span>
                 </div>
               </button>
@@ -224,18 +226,18 @@ export function WalletButton() {
                   openModal();
                 }}
                 disabled={connectAction.isRunning || disconnectAction.isRunning}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-left disabled:opacity-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#D2DFD1] hover:text-[#28B110] hover:bg-[#182017] rounded-xl transition-colors text-left disabled:opacity-50 cursor-pointer"
                 type="button"
                 role="menuitem"
               >
-                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <ArrowRightLeft className="w-3.5 h-3.5 text-[#889887]" />
                 <span>Trocar carteira</span>
               </button>
 
               <button
                 onClick={handleDisconnect}
                 disabled={disconnectAction.isRunning || connectAction.isRunning}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors text-left disabled:opacity-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl transition-colors text-left disabled:opacity-50 cursor-pointer"
                 type="button"
                 role="menuitem"
               >
@@ -276,7 +278,7 @@ export function WalletButton() {
     <div className="relative flex flex-col items-end gap-1">
       <button
         onClick={openModal}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow-emerald-600/20"
+        className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#28B110] hover:bg-[#20920C] active:bg-[#1A7709] text-[#101410] rounded-xl text-xs sm:text-sm font-bold transition-all shadow-xs hover:shadow-sm cursor-pointer"
         type="button"
       >
         <Wallet className="w-4 h-4" />
@@ -370,7 +372,7 @@ function WalletSelectModal({
     >
       <div
         ref={dialogRef}
-        className="relative w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl animate-in zoom-in-95 duration-150 outline-none"
+        className="relative w-full max-w-sm rounded-2xl bg-[#141C14] border border-[#283426] p-6 shadow-2xl animate-in zoom-in-95 duration-150 outline-none text-white"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -378,16 +380,16 @@ function WalletSelectModal({
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
       >
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-4 border-b border-[#283426]">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+            <div className="p-2 rounded-xl bg-[#1B261A] text-[#28B110] border border-[#28B110]/30">
               <Wallet className="w-5 h-5" />
             </div>
             <div>
-              <h3 id={titleId} className="text-base font-semibold text-white">
+              <h3 id={titleId} className="text-base font-bold text-white">
                 Conectar Carteira
               </h3>
-              <p id={descriptionId} className="text-xs text-slate-400">
+              <p id={descriptionId} className="text-xs text-[#889887]">
                 Selecione uma carteira Solana
               </p>
             </div>
@@ -395,7 +397,7 @@ function WalletSelectModal({
           <button
             onClick={onClose}
             disabled={isConnecting}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
+            className="p-1.5 rounded-lg text-[#889887] hover:text-white hover:bg-[#182017] transition-colors disabled:opacity-50 cursor-pointer"
             aria-label="Fechar"
             type="button"
           >
@@ -413,38 +415,38 @@ function WalletSelectModal({
                   key={key}
                   onClick={() => onSelect(wallet, key)}
                   disabled={isConnecting}
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 transition-all text-left disabled:opacity-50 group"
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-[#182017] hover:bg-[#1E281C] border border-[#283426] hover:border-[#28B110]/50 transition-all text-left disabled:opacity-50 group cursor-pointer"
                   type="button"
                 >
                   <div className="flex items-center gap-3">
                     {wallet.icon ? (
                       <img src={wallet.icon} alt={wallet.name} className="w-6 h-6 rounded-md object-contain" />
                     ) : (
-                      <div className="w-6 h-6 rounded-md bg-slate-800 flex items-center justify-center">
-                        <Wallet className="w-3.5 h-3.5 text-slate-400" />
+                      <div className="w-6 h-6 rounded-md bg-[#1B261A] border border-[#283426] flex items-center justify-center">
+                        <Wallet className="w-3.5 h-3.5 text-[#28B110]" />
                       </div>
                     )}
-                    <span className="font-medium text-sm text-slate-200 group-hover:text-white">
+                    <span className="font-semibold text-sm text-[#D2DFD1] group-hover:text-[#28B110]">
                       {wallet.name}
                     </span>
                   </div>
                   {isCurrentConnecting ? (
-                    <Sparkles className="w-4 h-4 animate-spin text-emerald-400" />
+                    <Sparkles className="w-4 h-4 animate-spin text-[#28B110]" />
                   ) : (
-                    <span className="text-xs text-slate-500 group-hover:text-slate-400">Detectada</span>
+                    <span className="text-xs text-[#889887] group-hover:text-[#28B110]">Detectada</span>
                   )}
                 </button>
               );
             })
           ) : (
             <div className="py-6 text-center">
-              <p className="text-sm text-slate-400 mb-4">Nenhuma carteira Solana compatível foi detectada no seu navegador.</p>
+              <p className="text-sm text-[#889887] mb-4">Nenhuma carteira Solana compatível foi detectada no seu navegador.</p>
               <div className="flex flex-col gap-2">
                 <a
                   href="https://phantom.app/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[#182017] hover:bg-[#1E281C] border border-[#283426] text-[#28B110] rounded-xl text-xs font-semibold transition-colors"
                 >
                   <span>Instalar Phantom</span>
                   <ExternalLink className="w-3 h-3" />
@@ -453,7 +455,7 @@ function WalletSelectModal({
                   href="https://solflare.com/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[#182017] hover:bg-[#1E281C] border border-[#283426] text-[#28B110] rounded-xl text-xs font-semibold transition-colors"
                 >
                   <span>Instalar Solflare</span>
                   <ExternalLink className="w-3 h-3" />
@@ -469,8 +471,8 @@ function WalletSelectModal({
           </p>
         )}
 
-        <div className="mt-5 pt-3 border-t border-slate-800 text-center">
-          <p className="text-[11px] text-slate-500">
+        <div className="mt-5 pt-3 border-t border-[#283426]/70 text-center">
+          <p className="text-[11px] text-[#889887]">
             Padrão Solana Wallet Standard • Conexão segura
           </p>
         </div>

@@ -39,7 +39,7 @@ export const ClaimPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <SolanaAddressPill address={currentUser.wallet_address} />
-          <span className="text-xs px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-700 font-mono">
+          <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#D9EED6] text-[#145907] border border-[#28B110]/30 font-mono font-bold">
             Devnet
           </span>
         </div>
@@ -56,10 +56,10 @@ export const ClaimPage: React.FC = () => {
             {myClaimableList.map((bounty) => (
               <div
                 key={bounty.id}
-                className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 to-emerald-950/30 border-2 border-emerald-500/60 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6"
+                className="p-6 rounded-2xl bg-gradient-to-r from-[#1B1E1A] to-[#145907]/40 border-2 border-[#28B110]/60 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6"
               >
                 <div className="flex flex-col gap-2 w-full">
-                  <div className="flex items-center gap-2 text-xs font-mono text-emerald-400">
+                  <div className="flex items-center gap-2 text-xs font-mono text-[#28B110]">
                     <span>{bounty.repository?.owner}/{bounty.repository?.name}</span>
                     <span>•</span>
                     <span>Issue #{bounty.issue?.number}</span>
@@ -77,7 +77,7 @@ export const ClaimPage: React.FC = () => {
 
                 <button
                   onClick={() => setSelectedBounty(bounty)}
-                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-base font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all cursor-pointer shrink-0"
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#28B110] hover:bg-[#28B110]/90 text-[#1B1E1A] text-base font-black flex items-center justify-center gap-2 shadow-lg shadow-[#28B110]/20 hover:scale-105 transition-all cursor-pointer shrink-0"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>CLAIM ${bounty.usdc_amount} USDC</span>
@@ -101,16 +101,16 @@ export const ClaimPage: React.FC = () => {
           </div>
 
           {carolUser && carolUser.id !== currentUser.id && (
-            <div className="mt-2 p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex flex-col sm:flex-row items-center gap-4 text-left">
+            <div className="mt-2 p-4 rounded-xl bg-[#145907]/30 border border-[#28B110]/40 flex flex-col sm:flex-row items-center gap-4 text-left">
               <div>
-                <strong className="text-sm text-emerald-300 block">Dica para a Demonstração:</strong>
+                <strong className="text-sm text-[#D9EED6] block">Dica para a Demonstração:</strong>
                 <span className="text-xs text-slate-300">
                   O usuário <strong>@carol-sol</strong> possui uma bounty pronta de $100 USDC (#131).
                 </span>
               </div>
               <button
                 onClick={() => setCurrentUser(carolUser)}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer shrink-0"
+                className="px-4 py-2 rounded-lg bg-[#145907] hover:bg-[#0e4104] text-[#D9EED6] border border-[#28B110]/40 text-xs font-semibold cursor-pointer shrink-0 transition-colors"
               >
                 Alternar para @carol-sol
               </button>

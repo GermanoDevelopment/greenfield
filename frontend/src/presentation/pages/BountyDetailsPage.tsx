@@ -17,6 +17,9 @@ import {
   Code2,
   AlertCircle,
   CheckCircle2,
+  UserCheck,
+  Clock,
+  GitBranch,
 } from 'lucide-react';
 
 export const BountyDetailsPage: React.FC = () => {
@@ -24,7 +27,8 @@ export const BountyDetailsPage: React.FC = () => {
   const {
     bounties,
     currentUser,
-    assignDeveloper,
+    submitProposal,
+    acceptProposalAndAssign,
     openPullRequest,
     mergePullRequest,
     solanaService,
@@ -33,6 +37,11 @@ export const BountyDetailsPage: React.FC = () => {
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Estado do formulário de proposta do desenvolvedor
+  const [showProposalForm, setShowProposalForm] = useState(false);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [estimatedDays, setEstimatedDays] = useState(2);
 
   const bounty = bounties.find((b) => b.id === id);
 
@@ -49,12 +58,23 @@ export const BountyDetailsPage: React.FC = () => {
     );
   }
 
-  // Ações de Simulação do Ciclo de Vida para a Demonstração (Happy Path)
-  const handleAssignToMe = async () => {
+  const isMaintainer = currentUser.role === 'maintainer' || currentUser.id === bounty.maintainer_id;
+  const myProposal = bounty.proposals?.find((p) => p.developer_id === currentUser.id);
+
+  // 1. Desenvolvedor submete proposta de associação
+  const handleSubmitProposal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!coverLetter.trim()) {
+      setActionError('Por favor informe a descrição técnica da proposta.');
+      return;
+    }
+
     setActionLoading(true);
     setActionError(null);
     try {
-      await assignDeveloper(bounty.id, currentUser.id);
+      await submitProposal(bounty.id, coverLetter, estimatedDays);
+      setShowProposalForm(false);
+      setCoverLetter('');
     } catch (err: any) {
       setActionError(err.message);
     } finally {
@@ -62,6 +82,20 @@ export const BountyDetailsPage: React.FC = () => {
     }
   };
 
+  // 2. Mantenedor aceita proposta e atribui a issue via API do GitHub
+  const handleAcceptProposal = async (proposalId: string) => {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await acceptProposalAndAssign(bounty.id, proposalId);
+    } catch (err: any) {
+      setActionError(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 3. Desenvolvedor abre Pull Request
   const handleOpenPr = async () => {
     setActionLoading(true);
     setActionError(null);
@@ -81,6 +115,7 @@ export const BountyDetailsPage: React.FC = () => {
     }
   };
 
+  // 4. Mantenedor faz Merge do PR e Plataforma Liquida o Pagamento Automatizado
   const handleMergePr = async () => {
     setActionLoading(true);
     setActionError(null);
@@ -160,6 +195,150 @@ export const BountyDetailsPage: React.FC = () => {
       {/* Stepper da Máquina de Estados */}
       <BountyStateStepper currentStatus={bounty.status} />
 
+      {/* SEÇÃO NOVO FLUXO: PROPOSTAS DE ASSOCIAÇÃO DO DESENVOLVEDOR */}
+      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col gap-5">
+        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+          <div className="flex items-center gap-2">
+            <Code2 className="w-5 h-5 text-violet-400" />
+            <h3 className="text-base font-bold text-white">
+              Propostas de Associação para esta Issue ({bounty.proposals?.length || 0})
+            </h3>
+          </div>
+
+          {bounty.status === 'OPEN_FOR_PROPOSALS' && !myProposal && currentUser.role !== 'maintainer' && (
+            <button
+              onClick={() => setShowProposalForm(!showProposalForm)}
+              className="px-3.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Submeter Proposta</span>
+            </button>
+          )}
+        </div>
+
+        {/* Formulário de Submissão para o Desenvolvedor */}
+        {showProposalForm && (
+          <form onSubmit={handleSubmitProposal} className="p-4 rounded-xl bg-slate-950/80 border border-violet-500/30 flex flex-col gap-3 animate-fade-in">
+            <h4 className="text-sm font-semibold text-violet-300">
+              Enviar Proposta de Resolução (@{currentUser.github_username})
+            </h4>
+
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">
+                Plano Técnico / Abordagem de Resolução:
+              </label>
+              <textarea
+                value={coverLetter}
+                onChange={(e) => setCoverLetter(e.target.value)}
+                placeholder="Explique resumidamente como você pretende resolver esta issue..."
+                rows={3}
+                className="w-full text-xs rounded-lg bg-slate-900 border border-slate-700 p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-400">Prazo estimado:</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={estimatedDays}
+                  onChange={(e) => setEstimatedDays(Number(e.target.value))}
+                  className="w-16 text-xs text-center rounded-lg bg-slate-900 border border-slate-700 p-1.5 text-white"
+                />
+                <span className="text-xs text-slate-400">dias</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowProposalForm(false)}
+                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <DesygenButton
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={actionLoading}
+                >
+                  Enviar Proposta
+                </DesygenButton>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* Lista de Propostas */}
+        {bounty.proposals && bounty.proposals.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3">
+            {bounty.proposals.map((prop) => {
+              const isAccepted = prop.status === 'ACCEPTED';
+              const isPending = prop.status === 'PENDING';
+
+              return (
+                <div
+                  key={prop.id}
+                  className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
+                    isAccepted
+                      ? 'bg-emerald-950/20 border-emerald-500/50'
+                      : 'bg-slate-950/60 border-slate-800'
+                  }`}
+                >
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <strong className="text-sm text-white">
+                        @{prop.developer?.github_username || 'developer'}
+                      </strong>
+                      <span className="text-xs text-slate-500">•</span>
+                      <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        {prop.estimated_days} {prop.estimated_days === 1 ? 'dia' : 'dias'} estimados
+                      </span>
+                      <span
+                        className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
+                          isAccepted
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                            : isPending
+                            ? 'bg-amber-950 text-amber-300 border border-amber-700'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {prop.status}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-300 italic">
+                      "{prop.cover_letter}"
+                    </p>
+                  </div>
+
+                  {/* Ação do Mantenedor: Aceitar e Atribuir via GitHub API */}
+                  {isMaintainer && isPending && bounty.status === 'OPEN_FOR_PROPOSALS' && (
+                    <DesygenButton
+                      variant="primary"
+                      size="sm"
+                      isLoading={actionLoading}
+                      onClick={() => handleAcceptProposal(prop.id)}
+                      icon={<UserCheck className="w-4 h-4" />}
+                    >
+                      Aceitar & Atribuir no GitHub
+                    </DesygenButton>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-850 text-center text-xs text-slate-400">
+            Nenhuma proposta submetida para esta issue até o momento.
+          </div>
+        )}
+      </div>
+
       {/* Painel de Participantes & Estado do PR */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Participantes */}
@@ -187,7 +366,7 @@ export const BountyDetailsPage: React.FC = () => {
                 {bounty.developer ? (
                   <strong className="text-sm text-white">@{bounty.developer.github_username}</strong>
                 ) : (
-                  <span className="text-xs text-slate-500 italic">Nenhum dev atribuído</span>
+                  <span className="text-xs text-slate-500 italic">Aguardando proposta</span>
                 )}
               </div>
             </div>
@@ -195,6 +374,14 @@ export const BountyDetailsPage: React.FC = () => {
               <SolanaAddressPill address={bounty.developer.wallet_address} />
             )}
           </div>
+
+          {/* Selo de Sincronização via GitHub API */}
+          {bounty.github_issue_assigned && (
+            <div className="text-xs text-emerald-400 bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-500/30 flex items-center gap-2 font-mono">
+              <GitBranch className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Issue #{bounty.issue?.number} atribuída oficialmente no GitHub API.</span>
+            </div>
+          )}
         </div>
 
         {/* Integração Pull Request & Merge */}
@@ -208,7 +395,7 @@ export const BountyDetailsPage: React.FC = () => {
               <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <GitPullRequest className="w-4 h-4 text-purple-400" />
+                    <GitPullRequest className="w-4 h-4 text-[#28B110]" />
                     <span className="font-mono text-sm font-bold text-white">
                       PR #{bounty.pr.number}
                     </span>
@@ -216,8 +403,8 @@ export const BountyDetailsPage: React.FC = () => {
                   <span
                     className={`px-2 py-0.5 rounded text-xs font-mono font-semibold ${
                       bounty.pr.merged
-                        ? 'bg-indigo-950 text-indigo-300 border border-indigo-700/50'
-                        : 'bg-purple-950 text-purple-300 border border-purple-700/50'
+                        ? 'bg-[#145907] text-[#D9EED6] border border-[#28B110]/50'
+                        : 'bg-[#145907]/30 text-[#D9EED6] border border-[#28B110]/30'
                     }`}
                   >
                     {bounty.pr.merged ? 'MERGED' : 'OPEN'}
@@ -230,7 +417,7 @@ export const BountyDetailsPage: React.FC = () => {
                   href={bounty.pr.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-purple-400 hover:underline inline-flex items-center gap-1 mt-1"
+                  className="text-xs text-[#28B110] hover:text-[#D9EED6] hover:underline inline-flex items-center gap-1 mt-1"
                 >
                   <span>Abrir PR no GitHub</span>
                   <ExternalLink className="w-3 h-3" />
@@ -247,20 +434,19 @@ export const BountyDetailsPage: React.FC = () => {
           <div className="text-xs text-slate-400 bg-slate-950/60 p-3 rounded-lg border border-slate-800 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <span>
-              <strong>Invariante 1:</strong> O pagamento só é liberado para Claim quando o mantenedor
-              efetuar o merge do PR.
+              <strong>Automação da Plataforma:</strong> Ao confirmar o merge do PR pelo mantenedor, a plataforma liquida o USDC diretamente na wallet Solana do desenvolvedor.
             </span>
           </div>
         </div>
       </div>
 
-      {/* Seção de Demonstração / Simulador do Ciclo de Vida */}
+      {/* Painel Interativo de Ciclo de Vida */}
       <div className="p-6 rounded-2xl bg-slate-900 border-2 border-emerald-500/30 shadow-lg flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-emerald-400" />
             <h3 className="text-base font-bold text-white">
-              Painel Interativo de Demonstração do MVP (Happy Path)
+              Painel Interativo de Demonstração (Nova Regra de Negócio)
             </h3>
           </div>
           <span className="text-xs font-mono text-slate-400">
@@ -275,19 +461,7 @@ export const BountyDetailsPage: React.FC = () => {
         )}
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          {/* 1. Atribuir Dev (se FUNDED) */}
-          {bounty.status === 'FUNDED' && (
-            <DesygenButton
-              variant="primary"
-              size="md"
-              isLoading={actionLoading}
-              onClick={handleAssignToMe}
-            >
-              Atribuir para Mim (@{currentUser.github_username})
-            </DesygenButton>
-          )}
-
-          {/* 2. Abrir PR (se ASSIGNED ou IN_PROGRESS) */}
+          {/* 1. Abrir PR (se ASSIGNED ou IN_PROGRESS) */}
           {(bounty.status === 'ASSIGNED' || bounty.status === 'IN_PROGRESS') && (
             <DesygenButton
               variant="primary"
@@ -300,7 +474,7 @@ export const BountyDetailsPage: React.FC = () => {
             </DesygenButton>
           )}
 
-          {/* 3. Fazer o Merge (se PR_OPEN) */}
+          {/* 2. Fazer o Merge (se PR_OPEN) -> Aciona pagamento automático */}
           {bounty.status === 'PR_OPEN' && (
             <DesygenButton
               variant="primary"
@@ -309,11 +483,11 @@ export const BountyDetailsPage: React.FC = () => {
               onClick={handleMergePr}
               icon={<GitMerge className="w-4 h-4" />}
             >
-              Simular Merge do PR pelo Mantenedor (Gatilho de Validação)
+              Merge do PR pelo Mantenedor (Pagamento Automático da Plataforma)
             </DesygenButton>
           )}
 
-          {/* 4. Realizar o Claim (se CLAIMABLE) */}
+          {/* 3. Fallback de Claim (se CLAIMABLE) */}
           {bounty.status === 'CLAIMABLE' && (
             <button
               onClick={() => setIsClaimModalOpen(true)}
@@ -324,15 +498,17 @@ export const BountyDetailsPage: React.FC = () => {
             </button>
           )}
 
-          {/* 5. Concluído (CLAIMED) */}
+          {/* 4. Concluído e Liquidado (CLAIMED) */}
           {bounty.status === 'CLAIMED' && bounty.claim && (
-            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-teal-950/40 border border-teal-700/50">
+            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-[#145907]/20 border border-[#28B110]/40">
               <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-6 h-6 text-teal-400 shrink-0" />
+                <CheckCircle2 className="w-6 h-6 text-[#28B110] shrink-0" />
                 <div>
-                  <h4 className="text-sm font-bold text-white">Recompensa Totalmente Liquidada</h4>
-                  <span className="text-xs text-slate-300 font-mono">
-                    Assinatura: {bounty.claim.transaction_signature.slice(0, 24)}...
+                  <h4 className="text-sm font-bold text-white">
+                    Recompensa Paga Automaticamente pela Plataforma!
+                  </h4>
+                  <span className="text-xs text-[#D9EED6]/80 font-mono">
+                    Assinatura Solana: {bounty.claim.transaction_signature.slice(0, 24)}...
                   </span>
                 </div>
               </div>
@@ -341,7 +517,7 @@ export const BountyDetailsPage: React.FC = () => {
                 href={solanaService.getExplorerUrl(bounty.claim.transaction_signature)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center gap-2 transition-colors shrink-0"
+                className="px-4 py-2 rounded-lg bg-[#145907] hover:bg-[#0e4104] text-[#D9EED6] border border-[#28B110]/40 text-xs font-semibold flex items-center gap-2 transition-colors shrink-0"
               >
                 <span>Ver no Solana Explorer</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -360,3 +536,4 @@ export const BountyDetailsPage: React.FC = () => {
 };
 
 export default BountyDetailsPage;
+
