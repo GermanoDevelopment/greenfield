@@ -6,10 +6,20 @@ import struct
 
 import base58
 import httpx
+from solders.hash import Hash
 from solders.instruction import AccountMeta, Instruction
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 from solders.transaction import Transaction
+from solinpy.client.async_client import SolanaAsyncRPCClient
+from solinpy.client.entities import RPCConfig
+from solinpy.client.execptions import RPCError as SolinpyRPCError
+from solinpy.transaction.token import (
+    TransferCheckedParams,
+    get_associated_token_address,
+    transfer_checked,
+)
+from solinpy.wallet.manager import WalletManager
 
 from app.core.config import Settings, get_settings
 
@@ -107,8 +117,6 @@ async def verify_escrow_funded(escrow_pda: str, expected_amount_usdc: float) -> 
 
 def get_treasury_keypair():
     """Load or generate the Greenfield community treasury keypair using Solinpy / Solders."""
-    from solinpy.wallet.manager import WalletManager
-
     settings = get_settings()
     if settings.solana_authority_secret_key:
         try:
@@ -131,32 +139,72 @@ async def execute_bounty_payout(
     amount_micro_usdc: int,
     mint: str | None = None,
 ) -> str:
-    """Execute SPL USDC payout to contributor directly (custodial fallback)."""
+    """Execute SPL USDC payout to contributor directly (custodial fallback).
+
+    Builds and sends the transfer by hand instead of calling Solinpy's
+    `send_token_transfer`: that helper hands a `solders.Transaction` straight to
+    `send_transaction` (which requires base64) and creates the receiver ATA with
+    the non-idempotent `Create` instruction, racing its own existence check.
+    """
     if not validate_wallet_address(destination_wallet):
         raise SolanaServiceError("Invalid destination Solana wallet address")
 
     settings = get_settings()
     token_mint = mint or settings.usdc_mint_devnet
+    treasury_kp = get_treasury_keypair()
 
-    try:
-        from solana.rpc.api import Client
-        from solinpy.transaction.token import send_token_transfer
+    receiver_pubkey = Pubkey.from_string(destination_wallet)
+    mint_pubkey = Pubkey.from_string(token_mint)
+    sender_ata = get_associated_token_address(str(treasury_kp.pubkey()), token_mint)
+    receiver_ata = get_associated_token_address(destination_wallet, token_mint)
 
-        client = Client(settings.solana_rpc_url)
-        treasury_kp = get_treasury_keypair()
-
-        tx_resp = send_token_transfer(
-            client=client,
-            sender_keypair=treasury_kp,
-            destination_wallet=destination_wallet,
-            token_mint=token_mint,
-            amount=amount_micro_usdc,
-            decimals=USDC_DECIMALS,
+    async with httpx.AsyncClient(timeout=15) as http_client:
+        client = SolanaAsyncRPCClient(
+            RPCConfig(custom_endpoint=settings.solana_rpc_url), client=http_client
         )
-        return str(tx_resp.value)
-    except Exception:
-        encoded_part = base58.b58encode(base58.b58decode(destination_wallet)[:16]).decode("utf-8")
-        return f"sim_{encoded_part}_{amount_micro_usdc}"
+
+        try:
+            instructions: list[Instruction] = []
+
+            account_info = await client.get_account_info(receiver_ata)
+            if account_info.value is None:
+                instructions.append(
+                    Instruction(
+                        ASSOCIATED_TOKEN_PROGRAM_ID,
+                        b"\x01",  # CreateIdempotent: plain Create races the existence check above
+                        [
+                            AccountMeta(treasury_kp.pubkey(), is_signer=True, is_writable=True),
+                            AccountMeta(receiver_ata, is_signer=False, is_writable=True),
+                            AccountMeta(receiver_pubkey, is_signer=False, is_writable=False),
+                            AccountMeta(mint_pubkey, is_signer=False, is_writable=False),
+                            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+                            AccountMeta(TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
+                        ],
+                    )
+                )
+
+            instructions.append(
+                transfer_checked(
+                    TransferCheckedParams(
+                        program_id=TOKEN_PROGRAM_ID,
+                        source=sender_ata,
+                        mint=mint_pubkey,
+                        dest=receiver_ata,
+                        owner=treasury_kp.pubkey(),
+                        amount=amount_micro_usdc,
+                        decimals=USDC_DECIMALS,
+                    )
+                )
+            )
+
+            blockhash = Hash.from_string(str(await client.get_latest_blockhash()))
+            tx = Transaction.new_signed_with_payer(
+                instructions, treasury_kp.pubkey(), [treasury_kp], blockhash
+            )
+            tx_base64 = base64.b64encode(bytes(tx)).decode("ascii")
+            return await client.send_transaction(tx_base64)
+        except SolinpyRPCError as e:
+            raise SolanaServiceError(f"Solana payout failed: {e}") from e
 
 
 # ---------------------------------------------------------------------------
@@ -218,8 +266,6 @@ def _require_signer(settings: Settings) -> tuple[Pubkey, Keypair, Pubkey]:
 
 async def _get_latest_blockhash():
     result = await _rpc_request("getLatestBlockhash", [{"commitment": "confirmed"}])
-    from solders.hash import Hash
-
     return Hash.from_string(result["value"]["blockhash"])
 
 
