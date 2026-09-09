@@ -24,7 +24,10 @@ def _verify_signature(payload: bytes, signature_header: str | None) -> bool:
     return hmac.compare_digest(expected, signature_header)
 
 
-@router.post("/github")
+@router.post(
+    "/github",
+    summary="Webhook de eventos do GitHub",
+)
 async def github_webhook(
     request: Request,
     db: DbSession,
@@ -32,6 +35,10 @@ async def github_webhook(
     x_hub_signature_256: str | None = Header(None),
     x_github_event: str | None = Header(None),
 ) -> dict:
+    """Recebe notificações de Pull Request (closed + merged) com validação de HMAC SHA-256.
+
+    Ao detectar um PR mesclado com sucesso, auto-completa o bounty e dispara liquidação on-chain.
+    """
     payload = await request.body()
     if not _verify_signature(payload, x_hub_signature_256):
         response.status_code = 403
