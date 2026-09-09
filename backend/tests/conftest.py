@@ -73,3 +73,18 @@ async def hunter_user(session_factory):
 def hunter_headers(hunter_user):
     token = create_access_token(hunter_user["id"], hunter_user["username"])
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+async def admin_user(session_factory):
+    async with session_factory() as session:
+        u = UserModel(github_id=999, username="germano_admin", role="ADMIN")
+        session.add(u)
+        await session.commit()
+        return {"id": u.id, "username": u.username, "role": u.role}
+
+
+@pytest.fixture
+def admin_headers(admin_user):
+    token = create_access_token(admin_user["id"], admin_user["username"])
+    return {"Authorization": f"Bearer {token}"}
