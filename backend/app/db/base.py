@@ -54,6 +54,9 @@ class ProjectModel(Base, TimestampMixin):
         back_populates="project", cascade="all, delete-orphan"
     )
     bounties: Mapped[list["BountyModel"]] = relationship(back_populates="project")
+    tracked_issues: Mapped[list["TrackedIssueModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class RepositoryModel(Base, TimestampMixin):
@@ -73,6 +76,9 @@ class RepositoryModel(Base, TimestampMixin):
 
     project: Mapped[ProjectModel] = relationship(back_populates="repositories")
     bounties: Mapped[list["BountyModel"]] = relationship(back_populates="repository")
+    tracked_issues: Mapped[list["TrackedIssueModel"]] = relationship(
+        back_populates="repository", cascade="all, delete-orphan"
+    )
 
 
 class BountyApplicantModel(Base, TimestampMixin):
@@ -132,3 +138,37 @@ class BountyModel(Base, TimestampMixin):
     applicants: Mapped[list[BountyApplicantModel]] = relationship(
         back_populates="bounty", cascade="all, delete-orphan"
     )
+    tracked_issue: Mapped["TrackedIssueModel | None"] = relationship(
+        back_populates="bounty", uselist=False
+    )
+
+
+class TrackedIssueModel(Base, TimestampMixin):
+    __tablename__ = "tracked_issues"
+    __table_args__ = (
+        UniqueConstraint("repository_id", "issue_number", name="uq_repo_issue_number"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    repository_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    issue_number: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    body: Mapped[str | None] = mapped_column(String, nullable=True)
+    html_url: Mapped[str] = mapped_column(String(512), nullable=False)
+    author_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    labels: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    state: Mapped[str] = mapped_column(String(32), nullable=False, default="open", index=True)
+    has_bounty: Mapped[bool] = mapped_column(nullable=False, default=False, index=True)
+    bounty_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("bounties.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="tracked_issues")
+    repository: Mapped[RepositoryModel] = relationship(back_populates="tracked_issues")
+    bounty: Mapped[BountyModel | None] = relationship(back_populates="tracked_issue")
+

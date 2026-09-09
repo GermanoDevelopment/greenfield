@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     github_client_secret: str = ""
     github_redirect_uri: str = "http://localhost:8080/api/v1/auth/github/callback"
     github_webhook_secret: str = ""
+    github_token: str | None = None
 
     solana_rpc_url: str = "https://api.devnet.solana.com"
     solana_program_id: str = ""
