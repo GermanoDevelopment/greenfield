@@ -8,7 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import type { Bounty, Claim, Repository, Treasury, User } from '../../core/domain/types';
-import { LocalStorageBountyRepository } from '../../infrastructure/repositories/LocalStorageBountyRepository';
+import { HybridBountyRepository } from '../../infrastructure/repositories/HybridBountyRepository';
 import { LocalStorageTreasuryRepository } from '../../infrastructure/repositories/LocalStorageTreasuryRepository';
 import { UserRepository } from '../../infrastructure/repositories/UserRepository';
 import { GitHubService } from '../../infrastructure/services/GitHubService';
@@ -24,6 +24,7 @@ interface AppContextType {
   bounties: Bounty[];
   treasury: Treasury | null;
   loading: boolean;
+  isBackendConnected: boolean;
   bountyUseCases: BountyUseCases;
   gitHubService: GitHubService;
   solanaService: SolanaService;
@@ -60,7 +61,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const bountyRepo = useMemo(() => new LocalStorageBountyRepository(), []);
+  const bountyRepo = useMemo(() => new HybridBountyRepository(), []);
   const treasuryRepo = useMemo(() => new LocalStorageTreasuryRepository(), []);
   const userRepo = useMemo(() => new UserRepository(), []);
   const gitHubService = useMemo(() => new GitHubService(), []);
@@ -77,10 +78,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [bounties, setBounties] = useState<Bounty[]>([]);
   const [treasury, setTreasury] = useState<Treasury | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
 
   const refreshData = useCallback(async () => {
     setLoading(true);
     try {
+      const connected = await bountyRepo.checkConnectivity();
+      setIsBackendConnected(connected);
+
       const [allBounties, currTreasury, users, repos] = await Promise.all([
         bountyRepo.getAll(),
         treasuryRepo.getTreasury(),
@@ -239,6 +244,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         bounties,
         treasury,
         loading,
+        isBackendConnected,
         bountyUseCases,
         gitHubService,
         solanaService,

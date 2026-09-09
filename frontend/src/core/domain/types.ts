@@ -18,7 +18,14 @@ export type BountyStatus =
   | 'VERIFICATION_FAILED'
   | 'CLAIM_FAILED';
 
-export type UserRole = 'maintainer' | 'developer' | 'both';
+export type UserRole =
+  | 'maintainer'
+  | 'developer'
+  | 'both'
+  | 'admin'
+  | 'ADMIN'
+  | 'MAINTAINER'
+  | 'CONTRIBUTOR';
 
 export const POINTS_PER_USDC = 100;
 
@@ -34,6 +41,7 @@ export interface User {
   id: string;
   github_id: number;
   github_username: string;
+  name?: string;
   avatar_url?: string;
   wallet_address: string;
   role: UserRole;
