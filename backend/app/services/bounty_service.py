@@ -5,7 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from app.db.base import BountyApplicantModel, BountyModel, ProjectModel, UserModel
+from app.db.base import (
+    BountyApplicantModel,
+    BountyModel,
+    ProjectModel,
+    RepositoryModel,
+    TrackedIssueModel,
+    UserModel,
+)
 from app.schemas.bounty import BOUNTY_TRANSITIONS, BountyStatus
 from app.services import github_service, solana_service
 
@@ -99,6 +106,18 @@ async def create_bounty(
         status=BountyStatus.OPEN.value,
     )
     session.add(bounty)
+    await session.flush()
+
+    if repository_id and issue_number:
+        tracked_stmt = select(TrackedIssueModel).where(
+            TrackedIssueModel.repository_id == repository_id,
+            TrackedIssueModel.issue_number == issue_number,
+        )
+        tracked_issue = (await session.execute(tracked_stmt)).scalar_one_or_none()
+        if tracked_issue:
+            tracked_issue.has_bounty = True
+            tracked_issue.bounty_id = bounty.id
+
     await session.commit()
     await session.refresh(bounty)
     return bounty
@@ -326,8 +345,6 @@ async def reject_bounty_submission(
 
 
 async def get_admin_stats(session: AsyncSession) -> dict:
-    from app.db.base import RepositoryModel
-
     projects_res = await session.execute(select(func.count(ProjectModel.id)))
     total_projects = projects_res.scalar() or 0
 
@@ -336,6 +353,17 @@ async def get_admin_stats(session: AsyncSession) -> dict:
 
     users_res = await session.execute(select(func.count(UserModel.id)))
     total_users = users_res.scalar() or 0
+
+    tracked_issues_res = await session.execute(select(func.count(TrackedIssueModel.id)))
+    total_tracked_issues = tracked_issues_res.scalar() or 0
+
+    unrewarded_res = await session.execute(
+        select(func.count(TrackedIssueModel.id)).where(
+            TrackedIssueModel.has_bounty.is_(False),
+            TrackedIssueModel.state == "open",
+        )
+    )
+    unrewarded_issues = unrewarded_res.scalar() or 0
 
     bounties_res = await session.execute(select(BountyModel))
     all_bounties = list(bounties_res.scalars().all())
@@ -368,5 +396,228 @@ async def get_admin_stats(session: AsyncSession) -> dict:
         "total_usdc_paid": round(total_paid_micro / 1_000_000, 2),
         "total_users": total_users,
         "pending_submissions": bounties_by_status[BountyStatus.SUBMITTED.value],
+        "unrewarded_issues": unrewarded_issues,
+        "total_tracked_issues": total_tracked_issues,
     }
+
+
+async def record_incoming_github_issue(
+    session: AsyncSession,
+    repo_full_name: str,
+    issue_data: dict,
+    action: str = "opened",
+) -> TrackedIssueModel | None:
+    """Registra ou atualiza uma issue recebida via webhook do GitHub."""
+    import json
+
+    stmt = select(RepositoryModel).where(
+        (RepositoryModel.github_repo == repo_full_name)
+        | (RepositoryModel.github_name == repo_full_name.split("/")[-1])
+    )
+    repo = (await session.execute(stmt)).scalars().first()
+    if not repo:
+        return None
+
+    issue_number = issue_data.get("number")
+    if not issue_number:
+        return None
+
+    if "pull_request" in issue_data:
+        return None
+
+    stmt = select(TrackedIssueModel).where(
+        TrackedIssueModel.repository_id == repo.id,
+        TrackedIssueModel.issue_number == issue_number,
+    )
+    tracked = (await session.execute(stmt)).scalar_one_or_none()
+
+    raw_labels = issue_data.get("labels", [])
+    label_names = [item["name"] if isinstance(item, dict) else str(item) for item in raw_labels]
+    state = issue_data.get("state", "open")
+    if action == "closed":
+        state = "closed"
+    elif action in ("opened", "reopened"):
+        state = "open"
+
+    user_info = issue_data.get("user") or {}
+    author_username = user_info.get("login") if isinstance(user_info, dict) else None
+    html_url = issue_data.get(
+        "html_url",
+        f"https://github.com/{repo.github_repo}/issues/{issue_number}",
+    )
+
+    if tracked is None:
+        tracked = TrackedIssueModel(
+            project_id=repo.project_id,
+            repository_id=repo.id,
+            issue_number=issue_number,
+            title=issue_data.get("title", ""),
+            body=issue_data.get("body"),
+            html_url=html_url,
+            author_username=author_username,
+            labels=json.dumps(label_names),
+            state=state,
+            has_bounty=False,
+        )
+        session.add(tracked)
+    else:
+        tracked.title = issue_data.get("title", tracked.title)
+        if issue_data.get("body") is not None:
+            tracked.body = issue_data.get("body")
+        tracked.state = state
+        tracked.labels = json.dumps(label_names)
+
+    await session.commit()
+    await session.refresh(tracked)
+    return tracked
+
+
+async def sync_repository_issues_from_github(
+    session: AsyncSession,
+    repository_id: int,
+) -> dict:
+    """Sincroniza issues abertas diretamente da API do GitHub para o banco de dados."""
+    import json
+
+    repo = await session.get(RepositoryModel, repository_id)
+    if repo is None:
+        raise NotFoundError("Repository")
+
+    issues = await github_service.fetch_repository_issues(
+        owner=repo.github_owner,
+        repo=repo.github_name,
+        state="open",
+    )
+
+    synced_count = 0
+    new_count = 0
+
+    for issue in issues:
+        if "pull_request" in issue:
+            continue
+
+        issue_number = issue.get("number")
+        if not issue_number:
+            continue
+
+        stmt = select(TrackedIssueModel).where(
+            TrackedIssueModel.repository_id == repo.id,
+            TrackedIssueModel.issue_number == issue_number,
+        )
+        existing = (await session.execute(stmt)).scalar_one_or_none()
+
+        raw_labels = issue.get("labels", [])
+        label_names = [item["name"] if isinstance(item, dict) else str(item) for item in raw_labels]
+        author = issue.get("user", {}).get("login") if issue.get("user") else None
+        html_url = issue.get(
+            "html_url",
+            f"https://github.com/{repo.github_repo}/issues/{issue_number}",
+        )
+
+        if existing is None:
+            tracked = TrackedIssueModel(
+                project_id=repo.project_id,
+                repository_id=repo.id,
+                issue_number=issue_number,
+                title=issue.get("title", ""),
+                body=issue.get("body"),
+                html_url=html_url,
+                author_username=author,
+                labels=json.dumps(label_names),
+                state=issue.get("state", "open"),
+                has_bounty=False,
+            )
+            session.add(tracked)
+            new_count += 1
+        else:
+            existing.title = issue.get("title", existing.title)
+            if issue.get("body") is not None:
+                existing.body = issue.get("body")
+            existing.state = issue.get("state", existing.state)
+            existing.labels = json.dumps(label_names)
+
+        synced_count += 1
+
+    await session.commit()
+    return {
+        "repository_id": repo.id,
+        "repository": repo.github_repo,
+        "total_synced": synced_count,
+        "new_issues": new_count,
+    }
+
+
+async def list_unrewarded_issues(
+    session: AsyncSession,
+    repository_id: int | None = None,
+    project_id: int | None = None,
+) -> list[TrackedIssueModel]:
+    """Retorna todas as issues rastreadas em aberto que ainda não possuem recompensa definida."""
+    stmt = (
+        select(TrackedIssueModel)
+        .where(
+            TrackedIssueModel.has_bounty.is_(False),
+            TrackedIssueModel.state == "open",
+        )
+        .options(
+            selectinload(TrackedIssueModel.repository),
+            selectinload(TrackedIssueModel.project),
+        )
+        .order_by(TrackedIssueModel.created_at.desc())
+    )
+    if repository_id is not None:
+        stmt = stmt.where(TrackedIssueModel.repository_id == repository_id)
+    if project_id is not None:
+        stmt = stmt.where(TrackedIssueModel.project_id == project_id)
+
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def assign_reward_to_tracked_issue(
+    session: AsyncSession,
+    issue_id: int,
+    points: int,
+    admin_user: UserModel,
+    amount_usdc: int | None = None,
+) -> BountyModel:
+    """
+    Atribui pontuação a uma issue rastreada, convertendo-a em um Bounty público (OPEN).
+    """
+    stmt = (
+        select(TrackedIssueModel)
+        .where(TrackedIssueModel.id == issue_id)
+        .options(selectinload(TrackedIssueModel.repository))
+    )
+    result = await session.execute(stmt)
+    tracked = result.scalar_one_or_none()
+    if tracked is None:
+        raise NotFoundError("TrackedIssue")
+
+    if tracked.has_bounty or tracked.bounty_id:
+        raise ConflictError("Esta issue já possui uma reward/bounty atribuída")
+
+    final_amount_usdc = amount_usdc if amount_usdc is not None else points * 10_000
+
+    bounty = BountyModel(
+        project_id=tracked.project_id,
+        repository_id=tracked.repository_id,
+        issuer_id=admin_user.id,
+        issue_url=tracked.html_url,
+        issue_number=tracked.issue_number,
+        issue_title=tracked.title,
+        issue_body=tracked.body,
+        points=points,
+        amount_usdc=final_amount_usdc,
+        status=BountyStatus.OPEN.value,
+    )
+    session.add(bounty)
+    await session.flush()
+
+    tracked.has_bounty = True
+    tracked.bounty_id = bounty.id
+    await session.commit()
+    await session.refresh(bounty)
+    return bounty
+
 
