@@ -20,6 +20,7 @@ import {
   type AdminStatsOut,
   type ApiBountyOut,
   type ApiRepositoryOut,
+  type ApiTrackedIssueOut,
 } from '../../services/api';
 
 // Fallbacks para demonstração offline
@@ -140,13 +141,57 @@ function getFallbackSubmittedBounties(): ApiBountyOut[] {
   ];
 }
 
+function getFallbackUnrewardedIssues(): ApiTrackedIssueOut[] {
+  return [
+    {
+      id: 101,
+      project_id: 1,
+      repository_id: 1,
+      issue_number: 101,
+      title: 'Suporte a transações v1 (SIMD-0385) de até 4096 bytes',
+      body: 'Permitir envio e decodificação do novo formato de transação v1 introduzido no Solana Devnet.',
+      html_url: 'https://github.com/solana-labs/solinpy-sdk/issues/101',
+      author_username: 'solana-fan',
+      labels: ['enhancement', 'v1-tx', 'good first issue'],
+      state: 'open',
+      has_bounty: false,
+      bounty_id: null,
+      created_at: new Date().toISOString(),
+      repository_name: 'solana-labs/solinpy-sdk',
+    },
+    {
+      id: 102,
+      project_id: 1,
+      repository_id: 2,
+      issue_number: 65,
+      title: 'Adicionar testes de integração automatizados com LiteSVM',
+      body: 'Criar suíte de testes rápida em memória simulando o runtime do SVM sem latência de rede.',
+      html_url: 'https://github.com/greenfield-protocol/greenfield-core/issues/65',
+      author_username: 'rust_hacker',
+      labels: ['testing', 'litesvm'],
+      state: 'open',
+      has_bounty: false,
+      bounty_id: null,
+      created_at: new Date().toISOString(),
+      repository_name: 'greenfield-protocol/greenfield-core',
+    },
+  ];
+}
+
 export const AdminPage: React.FC = () => {
   const { isBackendConnected, currentUser } = useApp();
-  const [activeTab, setActiveTab] = useState<'stats' | 'repos' | 'rewards' | 'moderation'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'repos' | 'unrewarded' | 'rewards' | 'moderation'>('stats');
 
   // Stats State
   const [stats, setStats] = useState<AdminStatsOut | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
+
+  // Tracked & Unrewarded Issues State
+  const [unrewardedIssues, setUnrewardedIssues] = useState<ApiTrackedIssueOut[]>([]);
+  const [syncingRepoId, setSyncingRepoId] = useState<number | null>(null);
+  const [assigningIssue, setAssigningIssue] = useState<ApiTrackedIssueOut | null>(null);
+  const [assignPoints, setAssignPoints] = useState<number>(250);
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // Repositories State
   const [repos, setRepos] = useState<ApiRepositoryOut[]>([]);
@@ -201,11 +246,20 @@ export const AdminPage: React.FC = () => {
           setOpenBounties(getFallbackOpenBounties());
           setSubmittedBounties(getFallbackSubmittedBounties());
         }
+
+        // Unrewarded Issues
+        try {
+          const issuesData = await greenfieldApi.admin.getUnrewardedIssues();
+          setUnrewardedIssues(issuesData);
+        } catch {
+          setUnrewardedIssues(getFallbackUnrewardedIssues());
+        }
       } else {
         setStats(getFallbackStats());
         setRepos(getFallbackRepos());
         setOpenBounties(getFallbackOpenBounties());
         setSubmittedBounties(getFallbackSubmittedBounties());
+        setUnrewardedIssues(getFallbackUnrewardedIssues());
       }
     } catch (err) {
       console.error('Erro ao carregar dados de admin:', err);
@@ -260,6 +314,53 @@ export const AdminPage: React.FC = () => {
       );
     } finally {
       setIsAddingRepo(false);
+    }
+  };
+
+  // Sincronizar Issues de Repositório via API do GitHub
+  const handleSyncRepository = async (repoId: number, repoName: string) => {
+    setSyncingRepoId(repoId);
+    setFeedbackSuccess(null);
+    setFeedbackError(null);
+    try {
+      if (isBackendConnected) {
+        const res = await greenfieldApi.admin.syncRepository(repoId);
+        setFeedbackSuccess(
+          `Sincronização concluída para ${repoName}: ${res.total_synced} issues verificadas, ${res.new_issues} novas adicionadas!`
+        );
+      } else {
+        setFeedbackSuccess(`[Demo] Simulação: 2 novas issues sincronizadas de ${repoName}.`);
+      }
+      await loadAdminData();
+    } catch (err: any) {
+      setFeedbackError(err?.response?.data?.detail || 'Erro ao sincronizar repositório.');
+    } finally {
+      setSyncingRepoId(null);
+    }
+  };
+
+  // Atribuir Reward e Publicar Grant
+  const handleAssignReward = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assigningIssue || assignPoints <= 0) return;
+    setIsAssigning(true);
+    setFeedbackSuccess(null);
+    setFeedbackError(null);
+    try {
+      if (isBackendConnected) {
+        await greenfieldApi.admin.assignReward(assigningIssue.id, assignPoints);
+      } else {
+        setUnrewardedIssues(unrewardedIssues.filter((i) => i.id !== assigningIssue.id));
+      }
+      setFeedbackSuccess(
+        `Reward de ${assignPoints} pts ($${(assignPoints / 100).toFixed(2)} USDC) atribuída com sucesso! Grant publicado publicamente.`
+      );
+      setAssigningIssue(null);
+      await loadAdminData();
+    } catch (err: any) {
+      setFeedbackError(err?.response?.data?.detail || 'Erro ao atribuir recompensa.');
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -438,6 +539,23 @@ export const AdminPage: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('unrewarded')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all relative cursor-pointer ${
+            activeTab === 'unrewarded'
+              ? 'bg-[#28B110] text-[#101410] shadow-md'
+              : 'text-[#889887] hover:text-white hover:bg-[#161C15]'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Novas Issues Sem Reward</span>
+          {unrewardedIssues.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-amber-500 text-black font-black">
+              {unrewardedIssues.length}
+            </span>
+          )}
+        </button>
+
+        <button
           onClick={() => setActiveTab('rewards')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'rewards'
@@ -472,7 +590,7 @@ export const AdminPage: React.FC = () => {
         <div className="space-y-6">
           {stats ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="p-5 rounded-2xl bg-[#161C15] border border-[#252E24]">
                   <div className="text-xs text-[#889887] flex items-center justify-between mb-2">
                     <span>Repositórios Registrados</span>
@@ -482,6 +600,19 @@ export const AdminPage: React.FC = () => {
                     {stats.total_repositories}
                   </div>
                   <span className="text-[11px] text-[#687867]">Tracking ativo no GitHub</span>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-[#161C15] border border-[#252E24]">
+                  <div className="text-xs text-[#889887] flex items-center justify-between mb-2">
+                    <span>Issues Sem Reward</span>
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="text-3xl font-black text-amber-400">
+                    {stats.unrewarded_issues ?? unrewardedIssues.length}
+                  </div>
+                  <span className="text-[11px] text-[#687867]">
+                    {stats.total_tracked_issues ?? (stats.total_bounties + unrewardedIssues.length)} monitoradas
+                  </span>
                 </div>
 
                 <div className="p-5 rounded-2xl bg-[#161C15] border border-[#252E24]">
@@ -653,20 +784,184 @@ export const AdminPage: React.FC = () => {
                         {r.description || '—'}
                       </td>
                       <td className="py-3 px-3 text-right">
-                        <a
-                          href={`https://github.com/${r.github_repo}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[#889887] hover:text-[#28B110]"
-                        >
-                          GitHub <ExternalLink className="w-3 h-3" />
-                        </a>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleSyncRepository(r.id, r.github_repo)}
+                            disabled={syncingRepoId === r.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1F291E] hover:bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/30 text-xs font-semibold cursor-pointer disabled:opacity-50 transition-colors"
+                            title="Buscar novas issues na API do GitHub"
+                          >
+                            <RefreshCw
+                              className={`w-3.5 h-3.5 ${syncingRepoId === r.id ? 'animate-spin' : ''}`}
+                            />
+                            <span>{syncingRepoId === r.id ? 'Sincronizando...' : 'Sync Issues'}</span>
+                          </button>
+                          <a
+                            href={`https://github.com/${r.github_repo}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[#889887] hover:text-[#28B110] px-2 py-1"
+                          >
+                            GitHub <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Novas Issues Sem Reward */}
+      {activeTab === 'unrewarded' && (
+        <div className="space-y-6">
+          {/* Webhook Configuration & Helper Card */}
+          <div className="bg-[#161C15] border border-[#252E24] rounded-2xl p-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-400" /> Webhook GitHub & Sincronização Automática
+                </h3>
+                <p className="text-xs text-[#889887] mt-1">
+                  Configure o Webhook no repositório GitHub para receber novas issues em tempo real. Cada nova issue cairá automaticamente nesta fila para definição de recompensa.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full text-xs font-mono bg-[#1F291E] text-[#28B110] border border-[#28B110]/40">
+                  Status: Ativo & Escutando
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3.5 bg-[#101410] border border-[#252E24] rounded-xl grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-[#889887] font-mono block text-[10px] uppercase">Payload URL:</span>
+                <span className="text-[#D2DFD1] font-mono break-all select-all">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/api/v1/webhooks/github` : 'https://api.greenfield.com/api/v1/webhooks/github'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#889887] font-mono block text-[10px] uppercase">Content type:</span>
+                <span className="text-[#28B110] font-mono">application/json</span>
+              </div>
+              <div>
+                <span className="text-[#889887] font-mono block text-[10px] uppercase">Eventos Monitorados:</span>
+                <span className="text-[#D2DFD1]">Issues (opened/closed) & Pull requests</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lista de Issues Sem Reward */}
+          <div className="bg-[#161C15] border border-[#252E24] rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-[#28B110]" /> Fila de Issues Pendentes ({unrewardedIssues.length})
+                </h3>
+                <p className="text-xs text-[#889887]">
+                  Atribua pontos para transformar a issue em um Grant Público (OPEN) no mural de recompensas.
+                </p>
+              </div>
+
+              <button
+                onClick={loadAdminData}
+                className="px-3 py-1.5 rounded-xl bg-[#1F291E] hover:bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Recarregar Fila</span>
+              </button>
+            </div>
+
+            {unrewardedIssues.length === 0 ? (
+              <div className="text-center py-12 text-[#889887] bg-[#101410] rounded-xl border border-[#202720]">
+                <CheckCircle2 className="w-8 h-8 text-[#28B110] mx-auto mb-2 opacity-60" />
+                <p className="font-semibold text-white text-sm">Nenhuma issue pendente de recompensa!</p>
+                <p className="text-xs text-[#889887] mt-1">
+                  Use o botão "Sync Issues" na aba de repositórios para buscar issues abertas ou aguarde novos eventos via Webhook.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-[#D2DFD1]">
+                  <thead className="border-b border-[#252E24] text-[#889887] uppercase font-mono text-[10px]">
+                    <tr>
+                      <th className="py-2.5 px-3">Repositório</th>
+                      <th className="py-2.5 px-3">Issue</th>
+                      <th className="py-2.5 px-3">Autor</th>
+                      <th className="py-2.5 px-3">Labels</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#202720]">
+                    {unrewardedIssues.map((issue) => (
+                      <tr key={issue.id} className="hover:bg-[#1D251B]/40 transition-colors">
+                        <td className="py-3 px-3 font-mono text-[#889887]">
+                          {issue.repository_name || 'Repositório'}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="flex flex-col">
+                            <a
+                              href={issue.html_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-bold text-white hover:text-[#28B110] inline-flex items-center gap-1 transition-colors"
+                            >
+                              <span>#{issue.issue_number} - {issue.title}</span>
+                              <ExternalLink className="w-3 h-3 opacity-60" />
+                            </a>
+                            {issue.body && (
+                              <span className="text-[11px] text-[#687867] line-clamp-1 mt-0.5">
+                                {issue.body}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-mono text-[#889887]">
+                          @{issue.author_username || 'autor'}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="flex flex-wrap gap-1">
+                            {issue.labels && issue.labels.length > 0 ? (
+                              issue.labels.map((lbl, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#1F291E] text-[#28B110] border border-[#28B110]/30"
+                                >
+                                  {lbl}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[#687867]">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-950/40 text-amber-400 border border-amber-500/40">
+                            Sem Reward
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => {
+                              setAssigningIssue(issue);
+                              setAssignPoints(250);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-[#28B110] hover:brightness-110 text-[#101410] font-bold text-xs transition-all shadow-md inline-flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Atribuir Reward</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -847,6 +1142,94 @@ export const AdminPage: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal para Atribuir Reward & Publicar Grant */}
+      {assigningIssue && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="bg-[#161C15] border border-[#28B110]/50 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div>
+              <span className="text-xs font-mono text-[#28B110] font-semibold">
+                GRANT & REWARD SETUP
+              </span>
+              <h3 className="text-lg font-bold text-white mt-1">
+                Atribuir Recompensa: #{assigningIssue.issue_number}
+              </h3>
+              <p className="text-xs text-[#889887] mt-0.5 line-clamp-2">
+                {assigningIssue.title}
+              </p>
+            </div>
+
+            <form onSubmit={handleAssignReward} className="space-y-4">
+              <div>
+                <label className="text-xs text-[#D2DFD1] font-medium block mb-1">
+                  Pontos Greenfield (100 pts = $1 USDC):
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="10"
+                    step="10"
+                    value={assignPoints}
+                    onChange={(e) => setAssignPoints(Number(e.target.value))}
+                    required
+                    className="w-full bg-[#101410] border border-[#252E24] rounded-xl px-3 py-2 text-sm text-[#D2DFD1] font-mono focus:outline-none focus:border-[#28B110]"
+                  />
+                  <div className="px-3 py-2 rounded-xl bg-[#1F291E] border border-[#28B110]/40 text-[#28B110] font-mono text-xs whitespace-nowrap">
+                    = ${(assignPoints / 100).toFixed(2)} USDC
+                  </div>
+                </div>
+              </div>
+
+              {/* Atalhos rápidos de pontuação */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[#889887]">Atalhos:</span>
+                {[100, 250, 500, 1000, 2500].map((pts) => (
+                  <button
+                    key={pts}
+                    type="button"
+                    onClick={() => setAssignPoints(pts)}
+                    className={`px-2 py-0.5 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
+                      assignPoints === pts
+                        ? 'bg-[#28B110] text-[#101410] font-bold'
+                        : 'bg-[#101410] text-[#889887] hover:text-white border border-[#252E24]'
+                    }`}
+                  >
+                    {pts} pts
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-3 bg-[#101410] rounded-xl border border-[#252E24] text-xs text-[#889887] space-y-1">
+                <p className="text-[#28B110] font-bold">Publicação Imediata do Grant</p>
+                <p>
+                  Esta task será publicada imediatamente com o status <strong className="text-white">OPEN</strong> no mural público de bounties do Greenfield.
+                </p>
+                <p className="text-[11px] text-[#687867]">
+                  Contribuidores poderão visualizar os requisitos técnicos e submeter candidaturas para resolvê-la.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAssigningIssue(null)}
+                  className="px-4 py-2 rounded-xl text-xs text-[#889887] hover:text-white transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAssigning || assignPoints <= 0}
+                  className="px-5 py-2.5 rounded-xl bg-[#28B110] hover:brightness-110 disabled:opacity-50 text-[#101410] font-bold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isAssigning ? 'Publicando...' : 'Publicar Grant'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
