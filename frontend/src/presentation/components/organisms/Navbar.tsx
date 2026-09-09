@@ -8,7 +8,7 @@ import { getChainDisplayLabel } from '../../../client';
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
-  const { resetToDefaults } = useApp();
+  const { resetToDefaults, isBackendConnected } = useApp();
   const chainLabel = getChainDisplayLabel();
 
   const navLinks = [
@@ -51,6 +51,27 @@ export const Navbar: React.FC = () => {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#28B110]"></span>
               </span>
               <span>{chainLabel}</span>
+            </div>
+
+            {/* Status da Conexão com a API Backend */}
+            <div
+              className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[11px] font-mono font-medium shrink-0 whitespace-nowrap shadow-xs ${
+                isBackendConnected
+                  ? 'bg-[#182017] border-[#283426] text-[#28B110]'
+                  : 'bg-[#1e1c18] border-[#383020] text-amber-400'
+              }`}
+              title={
+                isBackendConnected
+                  ? 'Conectado à API FastAPI (PostgreSQL)'
+                  : 'Operando em Modo Demo Local (LocalStorage)'
+              }
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isBackendConnected ? 'bg-[#28B110]' : 'bg-amber-400'
+                }`}
+              />
+              <span>{isBackendConnected ? 'API Live' : 'Demo Mode'}</span>
             </div>
           </div>
 
