@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.core.deps import DbSession
 from app.db.base import BountyModel, UserModel
 from app.schemas.bounty import BountyStatus
-from app.services.bounty_service import complete_bounty
+from app.services.bounty_service import complete_bounty, record_incoming_github_issue
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -70,5 +70,28 @@ async def github_webhook(
                 if issuer is not None:
                     await complete_bounty(db, bounty, issuer)
                     return {"detail": f"Bounty {bounty.id} completed"}
+
+    if x_github_event == "issues":
+        action = event.get("action", "")
+        issue_data = event.get("issue", {})
+        repo_data = event.get("repository", {})
+        repo_full_name = repo_data.get("full_name") or (
+            f"{repo_data.get('owner', {}).get('login')}/{repo_data.get('name')}"
+            if repo_data.get("name")
+            else None
+        )
+
+        if repo_full_name and issue_data:
+            tracked = await record_incoming_github_issue(
+                session=db,
+                repo_full_name=repo_full_name,
+                issue_data=issue_data,
+                action=action,
+            )
+            if tracked is not None:
+                return {
+                    "detail": f"Issue #{tracked.issue_number} recorded (action: {action})",
+                    "issue_id": tracked.id,
+                }
 
     return {"detail": "Event ignored"}
