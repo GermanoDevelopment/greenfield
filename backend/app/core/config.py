@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     port: int = 8080
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    frontend_url: str = "http://localhost:5173"
 
     database_url: str = "postgresql+asyncpg://greenfield:greenfield@localhost:5432/greenfield"
 
@@ -25,6 +26,7 @@ class Settings(BaseSettings):
     usdc_mint_devnet: str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
     solana_treasury_keypair_path: str | None = None
     solana_treasury_private_key: str | None = None
+    solana_authority_secret_key: str = ""
 
     admin_github_usernames: list[str] = ["GermanoDevelopment"]
 

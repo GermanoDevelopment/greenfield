@@ -155,6 +155,17 @@ export const greenfieldApi = {
     const params = state ? `?state=${encodeURIComponent(state)}` : '';
     return `${API_BASE_URL}/auth/github/login${params}`;
   },
+  getAuthConfig: async (): Promise<{ github_oauth_configured: boolean }> => {
+    const response = await apiClient.get<{ github_oauth_configured: boolean }>('/auth/config');
+    return response.data;
+  },
+  devLogin: async (username: string): Promise<{ access_token: string; user: ApiUserOut }> => {
+    const response = await apiClient.post<{ access_token: string; user: ApiUserOut }>('/auth/dev-login', { username });
+    if (response.data.access_token) {
+      setAuthToken(response.data.access_token);
+    }
+    return response.data;
+  },
   getMe: async (): Promise<ApiUserOut> => {
     const response = await apiClient.get<ApiUserOut>('/auth/me');
     return response.data;
@@ -260,6 +271,12 @@ export const greenfieldApi = {
     const response = await apiClient.post<ApiBountyOut>(`/bounties/${bountyId}/complete`);
     return response.data;
   },
+  reportClaim: async (bountyId: number, txSignature: string): Promise<ApiBountyOut> => {
+    const response = await apiClient.post<ApiBountyOut>(`/bounties/${bountyId}/claimed`, {
+      tx_signature: txSignature,
+    });
+    return response.data;
+  },
   cancelBounty: async (bountyId: number): Promise<{ status: string }> => {
     const response = await apiClient.post<{ status: string }>(`/bounties/${bountyId}/cancel`);
     return response.data;
@@ -294,4 +311,5 @@ export const greenfieldApi = {
 export const bountiesApi = {
   getBounties: () => greenfieldApi.listBounties(),
   getHealth: () => greenfieldApi.getHealth(),
+  reportClaim: (bountyId: number, signature: string) => greenfieldApi.reportClaim(bountyId, signature),
 };

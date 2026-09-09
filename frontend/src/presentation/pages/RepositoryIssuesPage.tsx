@@ -19,6 +19,9 @@ import {
   type ApiBountyOut,
 } from '../../services/api';
 
+// Cada issue rastreada corresponde a uma pontuação fixa, sem valor monetário associado
+const ISSUE_POINTS = 120;
+
 // Função mock para issues caso offline ou API sem issues
 function getMockIssues(): ApiGitHubIssueOut[] {
   return [
@@ -26,53 +29,53 @@ function getMockIssues(): ApiGitHubIssueOut[] {
       number: 42,
       title: 'Implementar validação off-chain de assinaturas Ed25519 em Solinpy',
       body: 'Precisamos criar uma rotina em Python que faça a verificação de assinatura Ed25519 compatível com Solana antes de enviar a transação ao cluster Devnet.',
-      html_url: 'https://github.com/solana-labs/solinpy-sdk/issues/42',
+      html_url: 'https://github.com/carcaras/solinpy/issues/42',
       state: 'open',
       author_username: 'solana-maintainer',
       labels: ['bounty', 'solana', 'python', 'security'],
       has_bounty: true,
       bounty_id: 1,
       bounty_status: 'OPEN',
-      bounty_points: 350,
+      bounty_points: ISSUE_POINTS,
     },
     {
       number: 45,
       title: 'Adicionar suporte a simulação de transações v1 (SIMD-0385) no SDK',
       body: 'O formato de transação v1 suporta até 4096 bytes. Precisamos de testes unitários para a serialização e envio ao RPC Devnet.',
-      html_url: 'https://github.com/solana-labs/solinpy-sdk/issues/45',
+      html_url: 'https://github.com/carcaras/solinpy/issues/45',
       state: 'open',
       author_username: 'solana-maintainer',
       labels: ['bounty', 'v1-tx', 'devnet'],
       has_bounty: true,
       bounty_id: 2,
       bounty_status: 'ASSIGNED',
-      bounty_points: 500,
+      bounty_points: ISSUE_POINTS,
     },
     {
       number: 51,
       title: 'Otimizar cálculo de Compute Units (CU) no CPI de Transferência SPL-Token',
       body: 'Reduzir o consumo de compute units adicionando pre-compute unit price instructions e limites de heap dinâmicos.',
-      html_url: 'https://github.com/solana-labs/solinpy-sdk/issues/51',
+      html_url: 'https://github.com/carcaras/solinpy/issues/51',
       state: 'open',
       author_username: 'solana-maintainer',
       labels: ['enhancement', 'compute-units', 'solana'],
       has_bounty: true,
       bounty_id: 3,
       bounty_status: 'SUBMITTED',
-      bounty_points: 250,
+      bounty_points: ISSUE_POINTS,
     },
     {
       number: 54,
       title: 'Criar documentação de integração do Greenfield com Solana Wallet Adapter',
       body: 'Escrever guia com exemplos de código em TypeScript usando @solana/kit e @solana/react.',
-      html_url: 'https://github.com/greenfield-protocol/greenfield-core/issues/54',
+      html_url: 'https://github.com/GermanoDevelopment/greenfield/issues/54',
       state: 'open',
       author_username: 'greenfield-admin',
       labels: ['documentation', 'good-first-issue'],
       has_bounty: true,
       bounty_id: 4,
       bounty_status: 'COMPLETED',
-      bounty_points: 150,
+      bounty_points: ISSUE_POINTS,
     },
   ];
 }
@@ -85,12 +88,12 @@ function getMockBounties(): ApiBountyOut[] {
       repository_id: 1,
       issuer_id: 1,
       hunter_id: null,
-      issue_url: 'https://github.com/solana-labs/solinpy-sdk/issues/42',
+      issue_url: 'https://github.com/carcaras/solinpy/issues/42',
       issue_number: 42,
       issue_title: 'Implementar validação off-chain de assinaturas Ed25519 em Solinpy',
       issue_body: 'Precisamos criar uma rotina em Python que faça a verificação...',
-      amount_usdc: 350,
-      points: 350,
+      amount_usdc: ISSUE_POINTS,
+      points: ISSUE_POINTS,
       status: 'OPEN',
       escrow_pda: 'Escrow1111111111111111111111111111111111',
       pr_url: null,
@@ -105,12 +108,12 @@ function getMockBounties(): ApiBountyOut[] {
       repository_id: 1,
       issuer_id: 1,
       hunter_id: 2,
-      issue_url: 'https://github.com/solana-labs/solinpy-sdk/issues/45',
+      issue_url: 'https://github.com/carcaras/solinpy/issues/45',
       issue_number: 45,
       issue_title: 'Adicionar suporte a simulação de transações v1 (SIMD-0385) no SDK',
       issue_body: 'O formato de transação v1...',
-      amount_usdc: 500,
-      points: 500,
+      amount_usdc: ISSUE_POINTS,
+      points: ISSUE_POINTS,
       status: 'ASSIGNED',
       escrow_pda: 'Escrow2222222222222222222222222222222222',
       pr_url: null,
@@ -125,15 +128,15 @@ function getMockBounties(): ApiBountyOut[] {
       repository_id: 1,
       issuer_id: 1,
       hunter_id: 2,
-      issue_url: 'https://github.com/solana-labs/solinpy-sdk/issues/51',
+      issue_url: 'https://github.com/carcaras/solinpy/issues/51',
       issue_number: 51,
       issue_title: 'Otimizar cálculo de Compute Units (CU) no CPI de Transferência SPL-Token',
       issue_body: 'Reduzir consumo...',
-      amount_usdc: 250,
-      points: 250,
+      amount_usdc: ISSUE_POINTS,
+      points: ISSUE_POINTS,
       status: 'SUBMITTED',
       escrow_pda: 'Escrow3333333333333333333333333333333333',
-      pr_url: 'https://github.com/solana-labs/solinpy-sdk/pull/52',
+      pr_url: 'https://github.com/carcaras/solinpy/pull/52',
       tx_signature: null,
       claimed_at: null,
       created_at: new Date().toISOString(),
@@ -145,15 +148,15 @@ function getMockBounties(): ApiBountyOut[] {
       repository_id: 1,
       issuer_id: 1,
       hunter_id: 2,
-      issue_url: 'https://github.com/greenfield-protocol/greenfield-core/issues/54',
+      issue_url: 'https://github.com/GermanoDevelopment/greenfield/issues/54',
       issue_number: 54,
       issue_title: 'Criar documentação de integração do Greenfield com Solana Wallet Adapter',
       issue_body: 'Documentação...',
-      amount_usdc: 150,
-      points: 150,
+      amount_usdc: ISSUE_POINTS,
+      points: ISSUE_POINTS,
       status: 'COMPLETED',
       escrow_pda: 'Escrow4444444444444444444444444444444444',
-      pr_url: 'https://github.com/greenfield-protocol/greenfield-core/pull/55',
+      pr_url: 'https://github.com/GermanoDevelopment/greenfield/pull/55',
       tx_signature: '5K2bM7q4C3pW6hS2aK1g8V9rXyZ3wT6uN4jH8kL9vP2bM7q4C3pW6hS2aK1g8V9r',
       claimed_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
@@ -184,7 +187,7 @@ export const RepositoryIssuesPage: React.FC = () => {
 
   const repoId = id ? parseInt(id, 10) : 1;
 
-  const loadData = async () => {
+  const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       if (isBackendConnected) {
@@ -208,11 +211,11 @@ export const RepositoryIssuesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [repoId, isBackendConnected]);
 
   useEffect(() => {
     loadData();
-  }, [repoId, isBackendConnected]);
+  }, [loadData]);
 
   // Candidatar-se à Bounty
   const handleApply = async () => {
@@ -279,7 +282,7 @@ export const RepositoryIssuesPage: React.FC = () => {
             Issues & Bounties do Repositório
           </h1>
           <p className="text-sm text-[#889887] mt-1">
-            Cada issue pontuada gera uma recompensa garantida em USDC após o merge do PR.
+            Cada issue resolvida concede {ISSUE_POINTS} pontos ao desenvolvedor após o merge do PR.
           </p>
         </div>
 
@@ -345,8 +348,8 @@ export const RepositoryIssuesPage: React.FC = () => {
               (b) => b.issue_number === issue.number || b.id === issue.bounty_id
             );
             const status = linkedBounty?.status || issue.bounty_status || (issue.has_bounty ? 'OPEN' : 'SEM BOUNTY');
-            const points = linkedBounty?.points || issue.bounty_points || 0;
-            const usdc = linkedBounty?.amount_usdc || points;
+            // Cada issue vale uma pontuação fixa — não há valor monetário associado à issue em si
+            const points = ISSUE_POINTS;
 
             return (
               <div
@@ -392,11 +395,8 @@ export const RepositoryIssuesPage: React.FC = () => {
                       <div className="text-xs text-[#889887] font-medium">Recompensa</div>
                       <div className="text-lg sm:text-xl font-black text-[#28B110] flex items-center justify-end gap-1">
                         <Coins className="w-4 h-4" />
-                        <span>${usdc} USDC</span>
+                        <span>{points} pontos</span>
                       </div>
-                      <span className="text-[10px] font-mono text-[#687867]">
-                        ({points} pontos)
-                      </span>
                     </div>
 
                     <div className="mt-1">
@@ -464,7 +464,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                             issue_number: issue.number,
                             issue_title: issue.title,
                             issue_body: issue.body,
-                            amount_usdc: usdc,
+                            amount_usdc: points,
                             points: points,
                             status: 'OPEN',
                             escrow_pda: null,
@@ -496,7 +496,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                             issue_number: issue.number,
                             issue_title: issue.title,
                             issue_body: issue.body,
-                            amount_usdc: usdc,
+                            amount_usdc: points,
                             points: points,
                             status: 'ASSIGNED',
                             escrow_pda: null,
@@ -570,7 +570,7 @@ export const RepositoryIssuesPage: React.FC = () => {
             <div className="p-3 bg-[#101410] rounded-xl border border-[#252E24] text-xs space-y-1">
               <div className="flex justify-between text-[#889887]">
                 <span>Recompensa Fixada:</span>
-                <span className="font-bold text-[#28B110]">${applyModalBounty.amount_usdc} USDC</span>
+                <span className="font-bold text-[#28B110]">{applyModalBounty.points} pontos</span>
               </div>
               <div className="flex justify-between text-[#889887]">
                 <span>Invariante:</span>
@@ -621,14 +621,14 @@ export const RepositoryIssuesPage: React.FC = () => {
                 type="url"
                 value={prUrl}
                 onChange={(e) => setPrUrl(e.target.value)}
-                placeholder="https://github.com/solana-labs/solinpy-sdk/pull/52"
+                placeholder="https://github.com/carcaras/solinpy/pull/52"
                 className="w-full bg-[#101410] border border-[#252E24] rounded-xl p-3 text-xs text-[#D2DFD1] placeholder-[#687867] focus:outline-none focus:border-[#28B110]"
               />
             </div>
 
             <div className="p-3 bg-[#101410] rounded-xl border border-[#252E24] text-xs text-[#889887] leading-relaxed">
               Ao submeter o PR, o status mudará para <strong className="text-blue-400">SUBMITTED</strong>.
-              O mantenedor ou administrador do projeto irá revisar o código e, após o merge, o pagamento de <strong className="text-[#28B110]">${submitPrModalBounty.amount_usdc} USDC</strong> será disparado via Devnet.
+              O mantenedor ou administrador do projeto irá revisar o código e, após o merge, <strong className="text-[#28B110]">{submitPrModalBounty.points} pontos</strong> serão creditados ao seu perfil.
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">

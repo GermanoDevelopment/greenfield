@@ -3,10 +3,45 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.db.base import Base, UserModel
 from app.db.session import get_db
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def _isolate_onchain_settings(monkeypatch):
+    """
+    Isola testes das chaves reais no .env local desativando
+    chamadas on-chain nos testes unitários.
+    """
+    settings = get_settings()
+    monkeypatch.setattr(settings, "solana_program_id", "")
+    monkeypatch.setattr(settings, "solana_authority_secret_key", "")
+
+
+@pytest.fixture
+def mock_github_issue_open(monkeypatch):
+    from app.services import github_service
+
+    async def fake_issue_open(issue_url: str) -> bool | None:
+        return True
+
+    monkeypatch.setattr(github_service, "is_issue_open", fake_issue_open)
+
+
+@pytest.fixture
+def mock_github_pr_merged(monkeypatch):
+    from app.services import github_service
+
+    merged = {"result": True}
+
+    async def fake_pr_merged(pr_url: str) -> bool | None:
+        return merged["result"]
+
+    monkeypatch.setattr(github_service, "is_pr_merged", fake_pr_merged)
+    return merged
 
 
 @pytest.fixture

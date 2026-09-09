@@ -1,5 +1,5 @@
 import React from 'react';
-import Button, { type ButtonProps } from '../../../../components/ui/Button';
+import Button, { type ButtonProps } from '../ui/Button';
 
 export interface DesygenButtonProps extends ButtonProps {
   icon?: React.ReactNode;

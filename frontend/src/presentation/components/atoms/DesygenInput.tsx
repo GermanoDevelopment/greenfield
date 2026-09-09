@@ -1,5 +1,5 @@
 import React from 'react';
-import Input, { type InputProps } from '../../../../components/ui/Input';
+import Input, { type InputProps } from '../ui/Input';
 
 export interface DesygenInputProps extends InputProps {
   helperText?: string;

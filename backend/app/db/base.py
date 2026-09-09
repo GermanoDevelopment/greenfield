@@ -132,3 +132,11 @@ class BountyModel(Base, TimestampMixin):
     applicants: Mapped[list[BountyApplicantModel]] = relationship(
         back_populates="bounty", cascade="all, delete-orphan"
     )
+
+    @property
+    def claim_signature(self) -> str | None:
+        return self.tx_signature
+
+    @claim_signature.setter
+    def claim_signature(self, value: str | None) -> None:
+        self.tx_signature = value

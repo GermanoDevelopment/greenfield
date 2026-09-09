@@ -1,6 +1,18 @@
 {
   "version": 1,
   "skills": {
+    "remotion-create": {
+      "source": "remotion-dev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/remotion-create/SKILL.md",
+      "computedHash": "a8fa014e3b91ca277badf9a3af5b13d55fb89ac782d526ed8ac1ef642508c016"
+    },
+    "remotion-render": {
+      "source": "remotion-dev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/remotion-render/SKILL.md",
+      "computedHash": "8d58eef2df3434f0b5b4260335bda3b293774ac260d0a7ee7f00624afaa94afb"
+    },
     "solana-dev": {
       "source": "solana-foundation/solana-dev-skill",
       "sourceType": "github",

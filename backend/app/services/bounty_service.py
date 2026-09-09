@@ -41,6 +41,25 @@ def _transition(bounty: BountyModel, to_status: BountyStatus) -> None:
     bounty.status = to_status.value
 
 
+def _require_wallet(user: UserModel, role: str) -> str:
+    if not user.wallet:
+        raise ValidationError(f"Connect a Solana wallet before acting as the {role}")
+    return user.wallet
+
+
+async def _run_onchain_or_rollback(session: AsyncSession, action) -> str | None:
+    """Executa uma instrução on-chain dentro da transação do banco ainda não commitada."""
+    if not solana_service.is_onchain_enabled():
+        return None
+    try:
+        return await action()
+    except solana_service.SolanaNotConfiguredError:
+        return None
+    except solana_service.SolanaServiceError as e:
+        await session.rollback()
+        raise ValidationError(f"On-chain transaction failed: {e}") from e
+
+
 async def create_bounty(
     session: AsyncSession,
     issuer: UserModel,
@@ -57,6 +76,9 @@ async def create_bounty(
     project = await get_project(session, project_id)
     if project.owner_id != issuer.id and issuer.role != "ADMIN":
         raise ForbiddenError("Only the project owner or an admin can create bounties")
+
+    if solana_service.is_onchain_enabled():
+        _require_wallet(issuer, "maintainer")
 
     issue_open = await github_service.is_issue_open(issue_url)
     if issue_open is False:
@@ -99,6 +121,15 @@ async def create_bounty(
         status=BountyStatus.OPEN.value,
     )
     session.add(bounty)
+    await session.flush()
+
+    await _run_onchain_or_rollback(
+        session,
+        lambda: solana_service.create_bounty_onchain(
+            bounty.id, bounty.amount_usdc, issuer.wallet or "11111111111111111111111111111111"
+        ),
+    )
+
     await session.commit()
     await session.refresh(bounty)
     return bounty
@@ -216,6 +247,12 @@ async def accept_bounty_applicant(
     _transition(bounty, BountyStatus.ASSIGNED)
     bounty.hunter_id = applicant.user_id
 
+    if solana_service.is_onchain_enabled() and applicant.user and applicant.user.wallet:
+        await _run_onchain_or_rollback(
+            session,
+            lambda: solana_service.assign_developer_onchain(bounty.id, applicant.user.wallet),
+        )
+
     await session.commit()
     await session.refresh(bounty)
     return bounty
@@ -245,8 +282,18 @@ async def assign_bounty(
 ) -> BountyModel:
     if bounty.issuer_id == hunter.id:
         raise ForbiddenError("The bounty issuer cannot assign it to themselves")
+    if solana_service.is_onchain_enabled():
+        _require_wallet(hunter, "developer")
+
     _transition(bounty, BountyStatus.ASSIGNED)
     bounty.hunter_id = hunter.id
+
+    if solana_service.is_onchain_enabled() and hunter.wallet:
+        await _run_onchain_or_rollback(
+            session,
+            lambda: solana_service.assign_developer_onchain(bounty.id, hunter.wallet),
+        )
+
     await session.commit()
     await session.refresh(bounty)
     return bounty
@@ -280,19 +327,26 @@ async def complete_bounty(
 
     _transition(bounty, BountyStatus.COMPLETED)
 
-    # Execute on-chain payout via Solinpy if hunter has wallet registered
-    if bounty.hunter_id:
-        hunter = await session.get(UserModel, bounty.hunter_id)
-        if hunter and hunter.wallet:
-            try:
-                tx_sig = await solana_service.execute_bounty_payout(
-                    destination_wallet=hunter.wallet,
-                    amount_micro_usdc=bounty.amount_usdc,
-                )
-                bounty.tx_signature = tx_sig
-                bounty.claimed_at = datetime.now(UTC)
-            except Exception:
-                pass
+    # Invariant 1: Approve claim on-chain unlocks developer's own claim transaction
+    if solana_service.is_onchain_enabled():
+        await _run_onchain_or_rollback(
+            session,
+            lambda: solana_service.approve_claim_onchain(bounty.id),
+        )
+    else:
+        # Execute on-chain payout via Solinpy if hunter has wallet registered (legacy/fallback mode)
+        if bounty.hunter_id:
+            hunter = await session.get(UserModel, bounty.hunter_id)
+            if hunter and hunter.wallet:
+                try:
+                    tx_sig = await solana_service.execute_bounty_payout(
+                        destination_wallet=hunter.wallet,
+                        amount_micro_usdc=bounty.amount_usdc,
+                    )
+                    bounty.tx_signature = tx_sig
+                    bounty.claimed_at = datetime.now(UTC)
+                except Exception:
+                    pass
 
     await session.commit()
     await session.refresh(bounty)
@@ -305,6 +359,35 @@ async def cancel_bounty(
     if bounty.issuer_id != actor.id and actor.role != "ADMIN":
         raise ForbiddenError("Only the bounty issuer or an admin can cancel it")
     _transition(bounty, BountyStatus.CANCELLED)
+
+    await _run_onchain_or_rollback(
+        session,
+        lambda: solana_service.cancel_bounty_onchain(bounty.id),
+    )
+
+    await session.commit()
+    await session.refresh(bounty)
+    return bounty
+
+
+async def record_claim(
+    session: AsyncSession, bounty: BountyModel, actor: UserModel, tx_signature: str
+) -> BountyModel:
+    """Registra a assinatura de claim executada pela carteira do desenvolvedor."""
+    if bounty.hunter_id != actor.id and actor.role != "ADMIN":
+        raise ForbiddenError("Only the assigned developer or an admin can report a claim")
+
+    if solana_service.is_onchain_enabled():
+        try:
+            account = await solana_service.get_bounty_account(bounty.id)
+        except solana_service.SolanaServiceError as e:
+            raise ConflictError(f"Could not verify claim on-chain: {e}") from e
+        if account is None or account["status"] != solana_service.BOUNTY_STATUS_CLAIMED:
+            raise ValidationError("The claim transaction has not been confirmed on-chain yet")
+
+    _transition(bounty, BountyStatus.CLAIMED)
+    bounty.tx_signature = tx_signature
+    bounty.claimed_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(bounty)
     return bounty

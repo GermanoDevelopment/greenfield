@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext';
 import MetricCard from '../molecules/MetricCard';
 import BountyTable from './BountyTable';
 import TreasuryBanner from './TreasuryBanner';
-import ClaimModal from '../molecules/ClaimModal';
+import ClaimModal from './ClaimModal';
 import type { Bounty } from '../../../core/domain/types';
 import { Landmark, GitPullRequest, Code2, Clock, CheckCircle, PlusCircle, Filter, ArrowRight } from 'lucide-react';
 import DesygenButton from '../atoms/DesygenButton';

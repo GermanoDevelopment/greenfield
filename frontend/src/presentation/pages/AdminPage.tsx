@@ -42,9 +42,9 @@ function getFallbackRepos(): ApiRepositoryOut[] {
     {
       id: 1,
       project_id: 1,
-      github_owner: 'solana-labs',
-      github_name: 'solinpy-sdk',
-      github_repo: 'solana-labs/solinpy-sdk',
+      github_owner: 'carcaras',
+      github_name: 'solinpy',
+      github_repo: 'carcaras/solinpy',
       description: 'Biblioteca Solana Python para smart contracts e pagamentos.',
       default_branch: 'main',
       is_active: true,
@@ -53,9 +53,9 @@ function getFallbackRepos(): ApiRepositoryOut[] {
     {
       id: 2,
       project_id: 1,
-      github_owner: 'greenfield-protocol',
-      github_name: 'greenfield-core',
-      github_repo: 'greenfield-protocol/greenfield-core',
+      github_owner: 'GermanoDevelopment',
+      github_name: 'greenfield',
+      github_repo: 'GermanoDevelopment/greenfield',
       description: 'Protocolo descentralizado de bounties.',
       default_branch: 'develop',
       is_active: true,
@@ -72,7 +72,7 @@ function getFallbackOpenBounties(): ApiBountyOut[] {
       repository_id: 1,
       issuer_id: 1,
       hunter_id: null,
-      issue_url: 'https://github.com/solana-labs/solinpy-sdk/issues/42',
+      issue_url: 'https://github.com/carcaras/solinpy/issues/42',
       issue_number: 42,
       issue_title: 'Implementar validação off-chain de assinaturas Ed25519 em Solinpy',
       issue_body: null,
@@ -91,7 +91,7 @@ function getFallbackOpenBounties(): ApiBountyOut[] {
       repository_id: 2,
       issuer_id: 1,
       hunter_id: null,
-      issue_url: 'https://github.com/greenfield-protocol/greenfield-core/issues/60',
+      issue_url: 'https://github.com/GermanoDevelopment/greenfield/issues/60',
       issue_number: 60,
       issue_title: 'Adicionar rate limiting nas chamadas ao RPC Devnet',
       issue_body: null,
@@ -115,7 +115,7 @@ function getFallbackSubmittedBounties(): ApiBountyOut[] {
       repository_id: 1,
       issuer_id: 1,
       hunter_id: 2,
-      issue_url: 'https://github.com/solana-labs/solinpy-sdk/issues/51',
+      issue_url: 'https://github.com/carcaras/solinpy/issues/51',
       issue_number: 51,
       issue_title: 'Otimizar cálculo de Compute Units (CU) no CPI de Transferência SPL-Token',
       issue_body: 'Reduzir compute units em transferências...',
@@ -123,7 +123,7 @@ function getFallbackSubmittedBounties(): ApiBountyOut[] {
       points: 250,
       status: 'SUBMITTED',
       escrow_pda: 'Escrow3333333333333333333333333333333333',
-      pr_url: 'https://github.com/solana-labs/solinpy-sdk/pull/52',
+      pr_url: 'https://github.com/carcaras/solinpy/pull/52',
       tx_signature: null,
       claimed_at: null,
       created_at: new Date().toISOString(),
@@ -171,7 +171,7 @@ export const AdminPage: React.FC = () => {
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   // Carregar dados gerais
-  const loadAdminData = async () => {
+  const loadAdminData = React.useCallback(async () => {
     setLoadingStats(true);
     try {
       if (isBackendConnected) {
@@ -212,11 +212,11 @@ export const AdminPage: React.FC = () => {
     } finally {
       setLoadingStats(false);
     }
-  };
+  }, [isBackendConnected]);
 
   useEffect(() => {
     loadAdminData();
-  }, [isBackendConnected]);
+  }, [loadAdminData]);
 
   // Adicionar Novo Repositório
   const handleAddRepository = async (e: React.FormEvent) => {
