@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   Lock,
@@ -22,6 +23,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen: propIsOpen,
   onClose: propOnClose,
 }) => {
+  const navigate = useNavigate();
   const { isLoginModalOpen, closeLoginModal, login, register } = useApp();
 
   const isOpen = propIsOpen !== undefined ? propIsOpen : isLoginModalOpen;
@@ -68,15 +70,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     try {
       if (mode === 'login') {
         await login(email, password);
-        setSuccessMessage('Autenticado com sucesso!');
+        setSuccessMessage('Autenticado com sucesso! Redirecionando...');
       } else {
         await register(email, password, username || undefined);
-        setSuccessMessage('Conta criada e autenticada com sucesso!');
+        setSuccessMessage('Conta criada e autenticada com sucesso! Redirecionando...');
       }
 
       setTimeout(() => {
         handleClose();
-      }, 600);
+        navigate('/dashboard');
+      }, 400);
     } catch (err: any) {
       const detail =
         err?.response?.data?.detail ||
