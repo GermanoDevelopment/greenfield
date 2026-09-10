@@ -4,19 +4,32 @@ import { MOCK_USERS } from '../data/mockData';
 
 const USER_SESSION_KEY = 'greenfield_current_user_v1';
 
+export const GUEST_USER: User = {
+  id: '',
+  github_id: null,
+  github_username: 'visitante',
+  name: 'Visitante',
+  email: null,
+  avatar_url: '',
+  wallet_address: '',
+  role: 'CONTRIBUTOR',
+  created_at: '',
+};
+
 export class UserRepository implements IUserRepository {
   private currentUser: User;
 
   constructor() {
-    const saved = localStorage.getItem(USER_SESSION_KEY);
-    if (saved) {
+    const hasJwt = typeof window !== 'undefined' && !!localStorage.getItem('greenfield_jwt');
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(USER_SESSION_KEY) : null;
+    if (hasJwt && saved) {
       try {
         this.currentUser = JSON.parse(saved);
       } catch {
-        this.currentUser = MOCK_USERS.maintainer;
+        this.currentUser = GUEST_USER;
       }
     } else {
-      this.currentUser = MOCK_USERS.maintainer;
+      this.currentUser = GUEST_USER;
     }
   }
 

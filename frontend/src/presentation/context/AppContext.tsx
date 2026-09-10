@@ -10,7 +10,7 @@ import React, {
 import type { Bounty, Claim, Repository, Treasury, User } from '../../core/domain/types';
 import { HybridBountyRepository } from '../../infrastructure/repositories/HybridBountyRepository';
 import { LocalStorageTreasuryRepository } from '../../infrastructure/repositories/LocalStorageTreasuryRepository';
-import { UserRepository } from '../../infrastructure/repositories/UserRepository';
+import { UserRepository, GUEST_USER } from '../../infrastructure/repositories/UserRepository';
 import { GitHubService } from '../../infrastructure/services/GitHubService';
 import { SolanaService } from '../../infrastructure/solana/solanaService';
 import { BountyUseCases } from '../../core/usecases/bountyUseCases';
@@ -27,6 +27,7 @@ interface AppContextType {
   loading: boolean;
   isBackendConnected: boolean;
   isAuthenticated: boolean;
+  authInitialized: boolean;
   isLoginModalOpen: boolean;
   openLoginModal: () => void;
   closeLoginModal: () => void;
@@ -112,6 +113,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return false;
     }
   });
+  const [authInitialized, setAuthInitialized] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('greenfield_jwt');
+    } catch {
+      return true;
+    }
+  });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
 
   const openLoginModal = useCallback(() => setIsLoginModalOpen(true), []);
@@ -179,18 +187,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const logout = useCallback(() => {
     greenfieldApi.logout();
     setIsAuthenticated(false);
-    const guestUser: User = {
-      id: 'guest',
-      github_id: null,
-      github_username: 'visitante',
-      name: 'Visitante',
-      avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80',
-      wallet_address: '',
-      role: 'CONTRIBUTOR',
-      created_at: new Date().toISOString(),
-    };
-    userRepo.setCurrentUser(guestUser);
-    setCurrentUserState(guestUser);
+    userRepo.setCurrentUser(GUEST_USER);
+    setCurrentUserState(GUEST_USER);
   }, [userRepo]);
 
   // Checa token existente na inicialização
@@ -207,7 +205,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } catch {
           setAuthToken(null);
           setIsAuthenticated(false);
+          userRepo.setCurrentUser(GUEST_USER);
+          setCurrentUserState(GUEST_USER);
+        } finally {
+          setAuthInitialized(true);
         }
+      } else {
+        setIsAuthenticated(false);
+        userRepo.setCurrentUser(GUEST_USER);
+        setCurrentUserState(GUEST_USER);
+        setAuthInitialized(true);
       }
     };
     checkAuthOnBoot();
@@ -228,10 +235,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const resetToDefaults = useCallback(async () => {
     bountyRepo.reset();
     await treasuryRepo.resetToDefault();
-    userRepo.setCurrentUser(MOCK_USERS.maintainer);
-    setCurrentUserState(MOCK_USERS.maintainer);
+    if (!isAuthenticated) {
+      userRepo.setCurrentUser(GUEST_USER);
+      setCurrentUserState(GUEST_USER);
+    }
     await refreshData();
-  }, [bountyRepo, treasuryRepo, userRepo, refreshData]);
+  }, [bountyRepo, treasuryRepo, userRepo, refreshData, isAuthenticated]);
 
   const toggleRepositoryApproval = useCallback(
     async (repoId: string, approved: boolean) => {
@@ -358,6 +367,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         loading,
         isBackendConnected,
         isAuthenticated,
+        authInitialized,
         isLoginModalOpen,
         openLoginModal,
         closeLoginModal,

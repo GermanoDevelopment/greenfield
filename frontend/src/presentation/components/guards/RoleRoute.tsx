@@ -1,8 +1,7 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Navigate, useLocation, Outlet } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { ProtectedRoute } from './ProtectedRoute';
-import { ForbiddenPage } from '../../pages/ForbiddenPage';
+import { Loader2 } from 'lucide-react';
 
 interface RoleRouteProps {
   allowedRoles: string[];
@@ -15,16 +14,35 @@ export const RoleRoute: React.FC<RoleRouteProps> = ({
   resourceName,
   children,
 }) => {
-  const { isAuthenticated, currentUser, loading } = useApp();
+  const { isAuthenticated, currentUser, authInitialized } = useApp();
+  const location = useLocation();
 
   // Se ainda estiver validando o token no boot
-  if (loading) {
-    return <ProtectedRoute>{null}</ProtectedRoute>;
+  if (!authInitialized) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3 p-8 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-[#182017] border border-[#28B110]/30 flex items-center justify-center text-[#28B110]">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+        <p className="text-xs font-mono text-[#889887] tracking-wider uppercase">
+          Verificando permissões...
+        </p>
+      </div>
+    );
   }
 
-  // Se o usuário sequer está autenticado, barra via ProtectedRoute
+  // Se não autenticado, redireciona imediatamente para a raiz
   if (!isAuthenticated) {
-    return <ProtectedRoute>{null}</ProtectedRoute>;
+    return (
+      <Navigate
+        to="/"
+        replace
+        state={{
+          from: location.pathname,
+          requireAuth: true,
+        }}
+      />
+    );
   }
 
   // Validação de Autorização (RBAC)
@@ -34,9 +52,14 @@ export const RoleRoute: React.FC<RoleRouteProps> = ({
 
   if (!isAllowed) {
     return (
-      <ForbiddenPage
-        requiredRole={allowedRoles.join(' ou ')}
-        resourceName={resourceName}
+      <Navigate
+        to="/403"
+        replace
+        state={{
+          requiredRole: allowedRoles.join(' ou '),
+          resourceName,
+          from: location.pathname,
+        }}
       />
     );
   }

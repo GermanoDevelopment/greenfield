@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import Navbar from '../organisms/Navbar';
 import Sidebar from '../organisms/Sidebar';
@@ -16,11 +16,21 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const location = useLocation();
   const isLanding = location.pathname === '/';
+  const isErrorPage = location.pathname === '/404' || location.pathname === '/403';
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const { isBackendConnected, resetToDefaults } = useApp();
+  const { isBackendConnected, resetToDefaults, isAuthenticated, openLoginModal } = useApp();
   const chainLabel = getChainDisplayLabel();
 
-  if (isLanding) {
+  // Abre automaticamente o modal de login se a rota foi redirecionada por falta de autenticação
+  useEffect(() => {
+    if (location.state?.requireAuth && !isAuthenticated) {
+      openLoginModal();
+    }
+  }, [location.state, isAuthenticated, openLoginModal]);
+
+  const isPublicView = isLanding || isErrorPage || !isAuthenticated;
+
+  if (isPublicView) {
     return (
       <div className="min-h-screen bg-[#141814] text-[#D2DFD1] flex flex-col font-sans selection:bg-[#28B110] selection:text-[#141814]">
         <Navbar />

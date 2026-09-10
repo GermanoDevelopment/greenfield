@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import {
   ShieldAlert,
@@ -16,9 +16,13 @@ interface ForbiddenPageProps {
 }
 
 export const ForbiddenPage: React.FC<ForbiddenPageProps> = ({
-  requiredRole = 'ADMIN',
-  resourceName,
+  requiredRole: propRole,
+  resourceName: propResource,
 }) => {
+  const location = useLocation();
+  const state = (location.state || {}) as { requiredRole?: string; resourceName?: string };
+  const requiredRole = propRole || state.requiredRole || 'ADMIN';
+  const resourceName = propResource || state.resourceName;
   const { currentUser, isAuthenticated, openLoginModal } = useApp();
 
   const currentRole = (currentUser.role || 'CONTRIBUTOR').toUpperCase();
