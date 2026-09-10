@@ -70,4 +70,8 @@ declare module 'lucide-react' {
   export const ChevronDown: LucideIcon;
   export const Eye: LucideIcon;
   export const EyeOff: LucideIcon;
+  export const Compass: LucideIcon;
+  export const FileQuestion: LucideIcon;
+  export const Home: LucideIcon;
+  export const ShieldX: LucideIcon;
 }
