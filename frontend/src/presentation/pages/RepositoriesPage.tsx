@@ -13,7 +13,7 @@ import { useApp } from '../context/AppContext';
 import { greenfieldApi, type ApiRepositoryOut } from '../../services/api';
 
 export const RepositoriesPage: React.FC = () => {
-  const { isBackendConnected, currentUser } = useApp();
+  const { currentUser } = useApp();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -23,74 +23,19 @@ export const RepositoriesPage: React.FC = () => {
     async function loadRepos() {
       setLoading(true);
       try {
-        if (isBackendConnected) {
-          const projects = await greenfieldApi.listProjects();
-          const allRepos = projects.flatMap((p) => p.repositories || []);
-          // Se o backend não tiver repositórios cadastrados ainda, use fallback representativo
-          if (allRepos.length > 0) {
-            setRepos(allRepos);
-          } else {
-            setRepos([
-              {
-                id: 1,
-                project_id: 1,
-                github_owner: 'solana-labs',
-                github_name: 'solinpy-sdk',
-                github_repo: 'solana-labs/solinpy-sdk',
-                description: 'Biblioteca Solana Python para smart contracts, pagamentos e PDAs em Devnet.',
-                default_branch: 'main',
-                is_active: true,
-                created_at: new Date().toISOString(),
-              },
-              {
-                id: 2,
-                project_id: 1,
-                github_owner: 'greenfield-protocol',
-                github_name: 'greenfield-core',
-                github_repo: 'greenfield-protocol/greenfield-core',
-                description: 'Protocolo descentralizado de incentivos a desenvolvedores open source.',
-                default_branch: 'develop',
-                is_active: true,
-                created_at: new Date().toISOString(),
-              },
-            ]);
-          }
-        } else {
-          // Mock / Fallback
-          setRepos([
-            {
-              id: 1,
-              project_id: 1,
-              github_owner: 'solana-labs',
-              github_name: 'solinpy-sdk',
-              github_repo: 'solana-labs/solinpy-sdk',
-              description: 'Biblioteca Solana Python para smart contracts, pagamentos e PDAs em Devnet.',
-              default_branch: 'main',
-              is_active: true,
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: 2,
-              project_id: 1,
-              github_owner: 'greenfield-protocol',
-              github_name: 'greenfield-core',
-              github_repo: 'greenfield-protocol/greenfield-core',
-              description: 'Protocolo descentralizado de incentivos a desenvolvedores open source.',
-              default_branch: 'develop',
-              is_active: true,
-              created_at: new Date().toISOString(),
-            },
-          ]);
-        }
+        const projects = await greenfieldApi.listProjects();
+        const allRepos = projects.flatMap((p) => p.repositories || []);
+        setRepos(allRepos);
       } catch (err) {
         console.error('Erro ao carregar repositórios:', err);
+        setRepos([]);
       } finally {
         setLoading(false);
       }
     }
 
     loadRepos();
-  }, [isBackendConnected]);
+  }, []);
 
   const filteredRepos = repos.filter(
     (r) =>

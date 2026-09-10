@@ -23,161 +23,6 @@ import {
   type ApiTrackedIssueOut,
 } from '../../services/api';
 
-// Fallbacks para demonstração offline
-function getFallbackStats(): AdminStatsOut {
-  return {
-    total_repositories: 2,
-    total_bounties: 6,
-    open_bounties: 2,
-    submitted_bounties: 1,
-    completed_bounties: 2,
-    total_points_allocated: 1650,
-    total_usdc_allocated: 1650,
-    total_usdc_paid: 450,
-    total_users: 3,
-  };
-}
-
-function getFallbackRepos(): ApiRepositoryOut[] {
-  return [
-    {
-      id: 1,
-      project_id: 1,
-      github_owner: 'solana-labs',
-      github_name: 'solinpy-sdk',
-      github_repo: 'solana-labs/solinpy-sdk',
-      description: 'Biblioteca Solana Python para smart contracts e pagamentos.',
-      default_branch: 'main',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      project_id: 1,
-      github_owner: 'greenfield-protocol',
-      github_name: 'greenfield-core',
-      github_repo: 'greenfield-protocol/greenfield-core',
-      description: 'Protocolo descentralizado de bounties.',
-      default_branch: 'develop',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-  ];
-}
-
-function getFallbackOpenBounties(): ApiBountyOut[] {
-  return [
-    {
-      id: 1,
-      project_id: 1,
-      repository_id: 1,
-      issuer_id: 1,
-      hunter_id: null,
-      issue_url: 'https://github.com/solana-labs/solinpy-sdk/issues/42',
-      issue_number: 42,
-      issue_title: 'Implementar validação off-chain de assinaturas Ed25519 em Solinpy',
-      issue_body: null,
-      amount_usdc: 350,
-      points: 350,
-      status: 'OPEN',
-      escrow_pda: null,
-      pr_url: null,
-      tx_signature: null,
-      claimed_at: null,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 5,
-      project_id: 1,
-      repository_id: 2,
-      issuer_id: 1,
-      hunter_id: null,
-      issue_url: 'https://github.com/greenfield-protocol/greenfield-core/issues/60',
-      issue_number: 60,
-      issue_title: 'Adicionar rate limiting nas chamadas ao RPC Devnet',
-      issue_body: null,
-      amount_usdc: 200,
-      points: 200,
-      status: 'OPEN',
-      escrow_pda: null,
-      pr_url: null,
-      tx_signature: null,
-      claimed_at: null,
-      created_at: new Date().toISOString(),
-    },
-  ];
-}
-
-function getFallbackSubmittedBounties(): ApiBountyOut[] {
-  return [
-    {
-      id: 3,
-      project_id: 1,
-      repository_id: 1,
-      issuer_id: 1,
-      hunter_id: 2,
-      issue_url: 'https://github.com/solana-labs/solinpy-sdk/issues/51',
-      issue_number: 51,
-      issue_title: 'Otimizar cálculo de Compute Units (CU) no CPI de Transferência SPL-Token',
-      issue_body: 'Reduzir compute units em transferências...',
-      amount_usdc: 250,
-      points: 250,
-      status: 'SUBMITTED',
-      escrow_pda: 'Escrow3333333333333333333333333333333333',
-      pr_url: 'https://github.com/solana-labs/solinpy-sdk/pull/52',
-      tx_signature: null,
-      claimed_at: null,
-      created_at: new Date().toISOString(),
-      hunter: {
-        id: 2,
-        github_id: 998877,
-        username: 'alice-dev',
-        avatar_url: 'https://avatars.githubusercontent.com/u/998877?v=4',
-        wallet: '4Nd1mBQtrMKp8YtHkgV4W4F1wW9vP2bM7q4C3pW6hS2a',
-        role: 'CONTRIBUTOR',
-        created_at: new Date().toISOString(),
-      },
-    },
-  ];
-}
-
-function getFallbackUnrewardedIssues(): ApiTrackedIssueOut[] {
-  return [
-    {
-      id: 101,
-      project_id: 1,
-      repository_id: 1,
-      issue_number: 101,
-      title: 'Suporte a transações v1 (SIMD-0385) de até 4096 bytes',
-      body: 'Permitir envio e decodificação do novo formato de transação v1 introduzido no Solana Devnet.',
-      html_url: 'https://github.com/solana-labs/solinpy-sdk/issues/101',
-      author_username: 'solana-fan',
-      labels: ['enhancement', 'v1-tx', 'good first issue'],
-      state: 'open',
-      has_bounty: false,
-      bounty_id: null,
-      created_at: new Date().toISOString(),
-      repository_name: 'solana-labs/solinpy-sdk',
-    },
-    {
-      id: 102,
-      project_id: 1,
-      repository_id: 2,
-      issue_number: 65,
-      title: 'Adicionar testes de integração automatizados com LiteSVM',
-      body: 'Criar suíte de testes rápida em memória simulando o runtime do SVM sem latência de rede.',
-      html_url: 'https://github.com/greenfield-protocol/greenfield-core/issues/65',
-      author_username: 'rust_hacker',
-      labels: ['testing', 'litesvm'],
-      state: 'open',
-      has_bounty: false,
-      bounty_id: null,
-      created_at: new Date().toISOString(),
-      repository_name: 'greenfield-protocol/greenfield-core',
-    },
-  ];
-}
-
 export const AdminPage: React.FC = () => {
   const { isBackendConnected, currentUser } = useApp();
   const [activeTab, setActiveTab] = useState<'stats' | 'repos' | 'unrewarded' | 'rewards' | 'moderation'>('stats');
@@ -219,47 +64,43 @@ export const AdminPage: React.FC = () => {
   const loadAdminData = async () => {
     setLoadingStats(true);
     try {
-      if (isBackendConnected) {
-        // Stats
-        try {
-          const statsData = await greenfieldApi.admin.getStats();
-          setStats(statsData);
-        } catch {
-          setStats(getFallbackStats());
-        }
+      // Stats
+      try {
+        const statsData = await greenfieldApi.admin.getStats();
+        setStats(statsData);
+      } catch (err) {
+        console.warn('Erro ao carregar stats da API:', err);
+        setStats(null);
+      }
 
-        // Repos
-        try {
-          const projects = await greenfieldApi.listProjects();
-          const allRepos = projects.flatMap((p) => p.repositories || []);
-          setRepos(allRepos.length > 0 ? allRepos : getFallbackRepos());
-        } catch {
-          setRepos(getFallbackRepos());
-        }
+      // Repos
+      try {
+        const projects = await greenfieldApi.listProjects();
+        const allRepos = projects.flatMap((p) => p.repositories || []);
+        setRepos(allRepos);
+      } catch (err) {
+        console.warn('Erro ao carregar repositórios da API:', err);
+        setRepos([]);
+      }
 
-        // Bounties
-        try {
-          const allBounties = await greenfieldApi.listBounties();
-          setOpenBounties(allBounties.filter((b) => b.status === 'OPEN'));
-          setSubmittedBounties(allBounties.filter((b) => b.status === 'SUBMITTED'));
-        } catch {
-          setOpenBounties(getFallbackOpenBounties());
-          setSubmittedBounties(getFallbackSubmittedBounties());
-        }
+      // Bounties
+      try {
+        const allBounties = await greenfieldApi.listBounties();
+        setOpenBounties(allBounties.filter((b) => b.status === 'OPEN'));
+        setSubmittedBounties(allBounties.filter((b) => b.status === 'SUBMITTED'));
+      } catch (err) {
+        console.warn('Erro ao carregar bounties da API:', err);
+        setOpenBounties([]);
+        setSubmittedBounties([]);
+      }
 
-        // Unrewarded Issues
-        try {
-          const issuesData = await greenfieldApi.admin.getUnrewardedIssues();
-          setUnrewardedIssues(issuesData);
-        } catch {
-          setUnrewardedIssues(getFallbackUnrewardedIssues());
-        }
-      } else {
-        setStats(getFallbackStats());
-        setRepos(getFallbackRepos());
-        setOpenBounties(getFallbackOpenBounties());
-        setSubmittedBounties(getFallbackSubmittedBounties());
-        setUnrewardedIssues(getFallbackUnrewardedIssues());
+      // Unrewarded Issues
+      try {
+        const issuesData = await greenfieldApi.admin.getUnrewardedIssues();
+        setUnrewardedIssues(issuesData);
+      } catch (err) {
+        console.warn('Erro ao carregar unrewarded issues da API:', err);
+        setUnrewardedIssues([]);
       }
     } catch (err) {
       console.error('Erro ao carregar dados de admin:', err);
@@ -281,28 +122,12 @@ export const AdminPage: React.FC = () => {
     setFeedbackError(null);
 
     try {
-      if (isBackendConnected) {
-        await greenfieldApi.admin.addRepository({
-          project_id: 1,
-          github_repo: newRepoName.trim(),
-          description: newRepoDesc.trim() || undefined,
-          default_branch: newRepoBranch.trim() || 'main',
-        });
-      } else {
-        // Fallback local
-        const created: ApiRepositoryOut = {
-          id: Date.now(),
-          project_id: 1,
-          github_owner: newRepoName.split('/')[0] || 'org',
-          github_name: newRepoName.split('/')[1] || newRepoName,
-          github_repo: newRepoName.trim(),
-          description: newRepoDesc.trim(),
-          default_branch: newRepoBranch.trim() || 'main',
-          is_active: true,
-          created_at: new Date().toISOString(),
-        };
-        setRepos([created, ...repos]);
-      }
+      await greenfieldApi.admin.addRepository({
+        project_id: 1,
+        github_repo: newRepoName.trim(),
+        description: newRepoDesc.trim() || undefined,
+        default_branch: newRepoBranch.trim() || 'main',
+      });
 
       setFeedbackSuccess(`Repositório ${newRepoName} cadastrado com sucesso!`);
       setNewRepoName('');

@@ -125,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
                 : 'text-amber-400 bg-amber-950/40 border-amber-500/30'
             }`}
           >
-            {isBackendConnected ? 'FastAPI Online' : 'Local Fallback'}
+            {isBackendConnected ? 'FastAPI Online' : 'API Desconectada'}
           </span>
         </div>
       </div>
@@ -230,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-[#28B110] hover:bg-[#22950d] text-white text-xs font-bold shadow-sm shadow-[#28B110]/20 transition-all cursor-pointer"
             >
               <LogIn className="w-4 h-4" />
-              <span>Entrar como Admin</span>
+              <span>Fazer Login</span>
             </button>
           </div>
         )}

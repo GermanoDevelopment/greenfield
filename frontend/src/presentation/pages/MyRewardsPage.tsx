@@ -12,7 +12,7 @@ import { useApp } from '../context/AppContext';
 import { greenfieldApi, type ApiBountyOut } from '../../services/api';
 
 export const MyRewardsPage: React.FC = () => {
-  const { isBackendConnected, currentUser } = useApp();
+  const { currentUser } = useApp();
   const [loading, setLoading] = useState(true);
   const [rewards, setRewards] = useState<ApiBountyOut[]>([]);
   const [copiedTx, setCopiedTx] = useState<string | null>(null);
@@ -21,75 +21,25 @@ export const MyRewardsPage: React.FC = () => {
     async function loadRewards() {
       setLoading(true);
       try {
-        if (isBackendConnected) {
-          const allBounties = await greenfieldApi.listBounties({ status: 'COMPLETED' });
-          // Filtra pelo hunter se especificado ou exibe as concluídas do usuário
-          const myCompleted = allBounties.filter(
-            (b) => b.hunter_id === currentUser.github_id || b.hunter?.username === currentUser.github_username || b.status === 'COMPLETED'
-          );
-          if (myCompleted.length > 0) {
-            setRewards(myCompleted);
-          } else {
-            setRewards(getFallbackRewards());
-          }
-        } else {
-          setRewards(getFallbackRewards());
-        }
+        const allBounties = await greenfieldApi.listBounties({ status: 'COMPLETED' });
+        // Filtra pelo hunter conectado
+        const myCompleted = allBounties.filter(
+          (b) =>
+            String(b.hunter_id) === currentUser.id ||
+            b.hunter_id === currentUser.github_id ||
+            b.hunter?.username === currentUser.github_username
+        );
+        setRewards(myCompleted);
       } catch (err) {
         console.error('Erro ao carregar rewards:', err);
-        setRewards(getFallbackRewards());
+        setRewards([]);
       } finally {
         setLoading(false);
       }
     }
 
     loadRewards();
-  }, [isBackendConnected, currentUser]);
-
-  function getFallbackRewards(): ApiBountyOut[] {
-    return [
-      {
-        id: 101,
-        project_id: 1,
-        repository_id: 1,
-        issuer_id: 1,
-        hunter_id: 2,
-        issue_url: 'https://github.com/greenfield-protocol/greenfield-core/issues/54',
-        issue_number: 54,
-        issue_title: 'Criar documentação de integração do Greenfield com Solana Wallet Adapter',
-        issue_body: 'Documentação completa com exemplos...',
-        amount_usdc: 150,
-        points: 150,
-        status: 'COMPLETED',
-        escrow_pda: 'Escrow4444444444444444444444444444444444',
-        pr_url: 'https://github.com/greenfield-protocol/greenfield-core/pull/55',
-        tx_signature: '5K2bM7q4C3pW6hS2aK1g8V9rXyZ3wT6uN4jH8kL9vP2bM7q4C3pW6hS2aK1g8V9r',
-        claimed_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-        created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
-        applicants: [],
-      },
-      {
-        id: 102,
-        project_id: 1,
-        repository_id: 1,
-        issuer_id: 1,
-        hunter_id: 2,
-        issue_url: 'https://github.com/solana-labs/solinpy-sdk/issues/39',
-        issue_number: 39,
-        issue_title: 'Adicionar typings para transações v1 no cliente RPC Python',
-        issue_body: 'Mapear campos SIMD-0385...',
-        amount_usdc: 200,
-        points: 200,
-        status: 'COMPLETED',
-        escrow_pda: 'Escrow5555555555555555555555555555555555',
-        pr_url: 'https://github.com/solana-labs/solinpy-sdk/pull/40',
-        tx_signature: '3Z9aK1g8V9rXyZ3wT6uN4jH8kL9vP2bM7q4C3pW6hS2aK1g8V9rXyZ3wT6uN4jH8',
-        claimed_at: new Date(Date.now() - 3600000 * 72).toISOString(),
-        created_at: new Date(Date.now() - 3600000 * 96).toISOString(),
-        applicants: [],
-      },
-    ];
-  }
+  }, [currentUser]);
 
   const handleCopy = (tx: string) => {
     navigator.clipboard.writeText(tx);
