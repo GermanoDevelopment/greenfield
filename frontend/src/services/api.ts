@@ -48,12 +48,19 @@ export interface HealthOut {
 
 export interface ApiUserOut {
   id: number;
-  github_id: number;
+  github_id: number | null;
   username: string;
+  email?: string | null;
   avatar_url: string | null;
   wallet: string | null;
   role: 'ADMIN' | 'MAINTAINER' | 'CONTRIBUTOR';
   created_at: string;
+}
+
+export interface ApiTokenResponse {
+  access_token: string;
+  token_type: string;
+  user: ApiUserOut;
 }
 
 export interface ApiRepositoryOut {
@@ -192,6 +199,23 @@ export const greenfieldApi = {
   },
 
   // Auth & Users
+  login: async (data: { email: string; password: string }): Promise<ApiTokenResponse> => {
+    const response = await apiClient.post<ApiTokenResponse>('/auth/login', data);
+    setAuthToken(response.data.access_token);
+    return response.data;
+  },
+  register: async (data: {
+    email: string;
+    password: string;
+    username?: string;
+  }): Promise<ApiTokenResponse> => {
+    const response = await apiClient.post<ApiTokenResponse>('/auth/register', data);
+    setAuthToken(response.data.access_token);
+    return response.data;
+  },
+  logout: () => {
+    setAuthToken(null);
+  },
   getGithubLoginUrl: (state?: string): string => {
     const params = state ? `?state=${encodeURIComponent(state)}` : '';
     return `${API_BASE_URL}/auth/github/login${params}`;

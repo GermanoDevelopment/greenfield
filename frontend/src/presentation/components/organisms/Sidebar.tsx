@@ -9,6 +9,9 @@ import {
   ShieldCheck,
   ExternalLink,
   ChevronRight,
+  LogIn,
+  LogOut,
+  KeyRound,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -17,7 +20,13 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
-  const { currentUser, setCurrentUser, availableUsers, isBackendConnected } = useApp();
+  const {
+    currentUser,
+    isAuthenticated,
+    openLoginModal,
+    logout,
+    isBackendConnected,
+  } = useApp();
 
   const navItems = [
     {
@@ -96,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
             Solana Devnet
           </span>
           <span className="text-[10px] font-mono text-[#28B110] bg-[#192A17] border border-[#28B110]/30 px-2 py-0.5 rounded">
-            Cluster Active
+            Active
           </span>
         </div>
 
@@ -162,60 +171,69 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         })}
       </nav>
 
-      {/* User Info & Persona Quick-Switch Footer */}
+      {/* User Info & Authentication Section */}
       <div className="p-4 border-t border-[#252E24] bg-[#141814]/80 space-y-3">
-        {/* Connected User Pill */}
-        <div className="flex items-center gap-3">
-          <img
-            src={currentUser.avatar_url || 'https://github.com/ghost.png'}
-            alt={currentUser.name || currentUser.github_username}
-            className="w-9 h-9 rounded-full border border-[#28B110]/40 object-cover bg-[#1A2319]"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-[#D9EED6] truncate">
-                {currentUser.name || currentUser.github_username}
-              </span>
-              <span
-                className={`text-[9px] font-mono px-1.5 py-0.2 rounded uppercase ${
-                  currentUser.role.toUpperCase() === 'ADMIN'
-                    ? 'bg-purple-900/60 text-purple-300 border border-purple-500/40'
-                    : currentUser.role.toUpperCase() === 'MAINTAINER'
-                    ? 'bg-[#192A17] text-[#28B110] border border-[#28B110]/40'
-                    : 'bg-[#1A2319] text-[#889887] border border-[#252E24]'
-                }`}
-              >
-                {currentUser.role}
-              </span>
+        {isAuthenticated ? (
+          <>
+            {/* Connected User Pill */}
+            <div className="flex items-center gap-3">
+              <img
+                src={currentUser.avatar_url || 'https://github.com/ghost.png'}
+                alt={currentUser.name || currentUser.github_username}
+                className="w-9 h-9 rounded-full border border-[#28B110]/40 object-cover bg-[#1A2319]"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-[#D9EED6] truncate">
+                    {currentUser.name || currentUser.github_username}
+                  </span>
+                  <span
+                    className={`text-[9px] font-mono px-1.5 py-0.2 rounded uppercase ${
+                      currentUser.role.toUpperCase() === 'ADMIN'
+                        ? 'bg-purple-900/60 text-purple-300 border border-purple-500/40'
+                        : currentUser.role.toUpperCase() === 'MAINTAINER'
+                        ? 'bg-[#192A17] text-[#28B110] border border-[#28B110]/40'
+                        : 'bg-[#1A2319] text-[#889887] border border-[#252E24]'
+                    }`}
+                  >
+                    {currentUser.role}
+                  </span>
+                </div>
+                <p className="text-[10px] font-mono text-[#889887] truncate">
+                  {currentUser.email ||
+                    (currentUser.wallet_address
+                      ? `${currentUser.wallet_address.slice(0, 4)}...${currentUser.wallet_address.slice(-4)}`
+                      : 'Sem carteira')}
+                </p>
+              </div>
             </div>
-            <p className="text-[10px] font-mono text-[#889887] truncate">
-              {currentUser.wallet_address
-                ? `${currentUser.wallet_address.slice(0, 4)}...${currentUser.wallet_address.slice(-4)}`
-                : 'Sem carteira'}
-            </p>
-          </div>
-        </div>
 
-        {/* Persona Selector (para testar os fluxos de Contributor vs Admin) */}
-        <div className="pt-2 border-t border-[#1F261E]">
-          <label className="text-[10px] font-mono text-[#687867] uppercase block mb-1">
-            Alternar Persona de Teste
-          </label>
-          <select
-            value={currentUser.id}
-            onChange={(e) => {
-              const selected = availableUsers.find((u) => u.id === e.target.value);
-              if (selected) setCurrentUser(selected);
-            }}
-            className="w-full bg-[#1A2319] border border-[#28B110]/30 rounded px-2 py-1 text-xs text-[#D9EED6] focus:outline-none focus:border-[#28B110]"
-          >
-            {availableUsers.map((u) => (
-              <option key={u.id} value={u.id} className="bg-[#101410] text-[#D9EED6]">
-                {u.name || u.github_username} ({u.role})
-              </option>
-            ))}
-          </select>
-        </div>
+            {/* Logout Action */}
+            <button
+              onClick={logout}
+              type="button"
+              className="w-full flex items-center justify-center gap-2 py-1.5 rounded-lg bg-[#1A2319] border border-[#252E24] hover:border-rose-500/40 hover:bg-rose-950/20 text-xs text-[#889887] hover:text-rose-300 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sair da Conta</span>
+            </button>
+          </>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-[#889887]">
+              <KeyRound className="w-4 h-4 text-[#28B110]" />
+              <span className="font-medium text-[#D9EED6]">Área Administrativa</span>
+            </div>
+            <button
+              onClick={openLoginModal}
+              type="button"
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-[#28B110] hover:bg-[#22950d] text-white text-xs font-bold shadow-sm shadow-[#28B110]/20 transition-all cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Entrar como Admin</span>
+            </button>
+          </div>
+        )}
 
         {/* Back to LP link */}
         <Link

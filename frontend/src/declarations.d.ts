@@ -63,4 +63,11 @@ declare module 'lucide-react' {
   export const Save: LucideIcon;
   export const GitFork: LucideIcon;
   export const Send: LucideIcon;
+  export const Mail: LucideIcon;
+  export const LogIn: LucideIcon;
+  export const LogOut: LucideIcon;
+  export const KeyRound: LucideIcon;
+  export const ChevronDown: LucideIcon;
+  export const Eye: LucideIcon;
+  export const EyeOff: LucideIcon;
 }

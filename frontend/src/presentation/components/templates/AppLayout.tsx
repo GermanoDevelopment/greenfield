@@ -3,6 +3,7 @@ import { useLocation, Link } from 'react-router-dom';
 import Navbar from '../organisms/Navbar';
 import Sidebar from '../organisms/Sidebar';
 import RoleSwitcher from '../molecules/RoleSwitcher';
+import LoginModal from '../molecules/LoginModal';
 import { WalletButton } from '../../../components/WalletButton';
 import { getChainDisplayLabel } from '../../../client';
 import { useApp } from '../../context/AppContext';
@@ -40,6 +41,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             </span>
           </div>
         </footer>
+
+        <LoginModal />
       </div>
     );
   }
@@ -157,6 +160,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           </div>
         </footer>
       </div>
+
+      <LoginModal />
     </div>
   );
 };

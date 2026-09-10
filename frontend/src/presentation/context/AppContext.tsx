@@ -15,6 +15,7 @@ import { GitHubService } from '../../infrastructure/services/GitHubService';
 import { SolanaService } from '../../infrastructure/solana/solanaService';
 import { BountyUseCases } from '../../core/usecases/bountyUseCases';
 import { MOCK_USERS } from '../../infrastructure/data/mockData';
+import { greenfieldApi, type ApiUserOut, setAuthToken } from '../../services/api';
 
 interface AppContextType {
   currentUser: User;
@@ -25,6 +26,13 @@ interface AppContextType {
   treasury: Treasury | null;
   loading: boolean;
   isBackendConnected: boolean;
+  isAuthenticated: boolean;
+  isLoginModalOpen: boolean;
+  openLoginModal: () => void;
+  closeLoginModal: () => void;
+  login: (email: string, password: string) => Promise<User>;
+  register: (email: string, password: string, username?: string) => Promise<User>;
+  logout: () => void;
   bountyUseCases: BountyUseCases;
   gitHubService: GitHubService;
   solanaService: SolanaService;
@@ -72,6 +80,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [bountyRepo, treasuryRepo, solanaService, gitHubService]
   );
 
+  const apiUserToUser = useCallback((apiUser: ApiUserOut): User => {
+    return {
+      id: String(apiUser.id),
+      github_id: apiUser.github_id ?? null,
+      github_username: apiUser.username,
+      email: apiUser.email || null,
+      name: apiUser.username,
+      avatar_url:
+        apiUser.avatar_url ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          apiUser.username
+        )}&background=28B110&color=fff`,
+      wallet_address: apiUser.wallet || '',
+      role: apiUser.role,
+      created_at: apiUser.created_at,
+    };
+  }, []);
+
   const [currentUser, setCurrentUserState] = useState<User>(userRepo.getCurrentUser());
   const [availableUsers, setAvailableUsers] = useState<User[]>(Object.values(MOCK_USERS));
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -79,6 +105,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [treasury, setTreasury] = useState<Treasury | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return !!localStorage.getItem('greenfield_jwt');
+    } catch {
+      return false;
+    }
+  });
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+
+  const openLoginModal = useCallback(() => setIsLoginModalOpen(true), []);
+  const closeLoginModal = useCallback(() => setIsLoginModalOpen(false), []);
 
   const refreshData = useCallback(async () => {
     setLoading(true);
@@ -94,12 +131,87 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ]);
       setBounties(allBounties);
       setTreasury(currTreasury);
-      setAvailableUsers(users);
+
+      let mergedUsers = users;
+      if (connected) {
+        try {
+          const apiUsers = await greenfieldApi.listUsers();
+          if (apiUsers && apiUsers.length > 0) {
+            mergedUsers = apiUsers.map(apiUserToUser);
+          }
+        } catch {
+          // Mantém users locais em caso de falha de listagem
+        }
+      }
+      setAvailableUsers(mergedUsers);
       setRepositories(repos);
     } finally {
       setLoading(false);
     }
-  }, [bountyRepo, treasuryRepo, userRepo, gitHubService]);
+  }, [bountyRepo, treasuryRepo, userRepo, gitHubService, apiUserToUser]);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await greenfieldApi.login({ email, password });
+      const user = apiUserToUser(res.user);
+      userRepo.setCurrentUser(user);
+      setCurrentUserState(user);
+      setIsAuthenticated(true);
+      await refreshData();
+      return user;
+    },
+    [userRepo, apiUserToUser, refreshData]
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, username?: string) => {
+      const res = await greenfieldApi.register({ email, password, username });
+      const user = apiUserToUser(res.user);
+      userRepo.setCurrentUser(user);
+      setCurrentUserState(user);
+      setIsAuthenticated(true);
+      await refreshData();
+      return user;
+    },
+    [userRepo, apiUserToUser, refreshData]
+  );
+
+  const logout = useCallback(() => {
+    greenfieldApi.logout();
+    setIsAuthenticated(false);
+    const guestUser: User = {
+      id: 'guest',
+      github_id: null,
+      github_username: 'visitante',
+      name: 'Visitante',
+      avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80',
+      wallet_address: '',
+      role: 'CONTRIBUTOR',
+      created_at: new Date().toISOString(),
+    };
+    userRepo.setCurrentUser(guestUser);
+    setCurrentUserState(guestUser);
+  }, [userRepo]);
+
+  // Checa token existente na inicialização
+  useEffect(() => {
+    const checkAuthOnBoot = async () => {
+      const token = localStorage.getItem('greenfield_jwt');
+      if (token) {
+        try {
+          const me = await greenfieldApi.getMe();
+          const user = apiUserToUser(me);
+          userRepo.setCurrentUser(user);
+          setCurrentUserState(user);
+          setIsAuthenticated(true);
+        } catch {
+          setAuthToken(null);
+          setIsAuthenticated(false);
+        }
+      }
+    };
+    checkAuthOnBoot();
+  }, [userRepo, apiUserToUser]);
 
   useEffect(() => {
     refreshData();
@@ -245,6 +357,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         treasury,
         loading,
         isBackendConnected,
+        isAuthenticated,
+        isLoginModalOpen,
+        openLoginModal,
+        closeLoginModal,
+        login,
+        register,
+        logout,
         bountyUseCases,
         gitHubService,
         solanaService,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Wallet,
@@ -7,17 +7,30 @@ import {
   AlertCircle,
   ExternalLink,
   Save,
+  LogIn,
+  LogOut,
   Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { greenfieldApi } from '../../services/api';
 
 export const ProfilePage: React.FC = () => {
-  const { currentUser, setCurrentUser, availableUsers, isBackendConnected } = useApp();
+  const {
+    currentUser,
+    setCurrentUser,
+    isAuthenticated,
+    openLoginModal,
+    logout,
+    isBackendConnected,
+  } = useApp();
   const [walletInput, setWalletInput] = useState(currentUser.wallet_address || '');
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWalletInput(currentUser.wallet_address || '');
+  }, [currentUser]);
 
   const handleSaveWallet = async () => {
     setIsSaving(true);
@@ -115,44 +128,57 @@ export const ProfilePage: React.FC = () => {
                 {currentUser.role}
               </span>
             </div>
-            <p className="text-xs font-mono text-[#889887]">
-              GitHub ID: <span className="text-[#D2DFD1]">{currentUser.github_id}</span>
-            </p>
-            <p className="text-xs text-[#889887]">
-              Usuário autenticado via OAuth com permissões ativas para o Greenfield MVP.
-            </p>
+              <p className="text-xs font-mono text-[#889887]">
+                E-mail: <span className="text-[#D2DFD1]">{currentUser.email || 'Não informado'}</span>
+              </p>
+              {currentUser.github_id && (
+                <p className="text-xs font-mono text-[#889887]">
+                  GitHub ID: <span className="text-[#D2DFD1]">{currentUser.github_id}</span>
+                </p>
+              )}
+              <p className="text-xs text-[#889887]">
+                {isAuthenticated
+                  ? 'Sessão autenticada no backend FastAPI com emissão de token JWT.'
+                  : 'Nenhum usuário autenticado no backend. Faça login para acessar todos os recursos.'}
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Alternar Persona de Teste */}
-        <div className="pt-4 border-t border-[#202720]">
-          <label className="text-xs text-[#889887] font-medium block mb-2">
-            Simular / Alternar Usuário de Teste (Mock Personas):
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {availableUsers.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => {
-                  setCurrentUser(u);
-                  setWalletInput(u.wallet_address || '');
-                  setSuccessMessage(
-                    `Alternado para persona: ${u.name || u.github_username} (${u.role})`
-                  );
-                }}
-                className={`p-3 rounded-xl border text-left transition-all text-xs cursor-pointer ${
-                  currentUser.id === u.id
-                    ? 'bg-[#1D2B1A] border-[#28B110] text-white shadow-xs'
-                    : 'bg-[#101410] border-[#252E24] text-[#889887] hover:border-[#28B110]/40'
-                }`}
-              >
-                <div className="font-bold truncate">{u.name || u.github_username}</div>
-                <div className="text-[10px] font-mono text-[#28B110] uppercase">{u.role}</div>
-              </button>
-            ))}
+          {/* Ações de Conta & Sessão */}
+          <div className="pt-4 border-t border-[#202720] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="text-xs text-[#889887]">
+              {isAuthenticated ? (
+                <span className="text-[#D9EED6]">
+                  Status da Conta: <span className="text-[#28B110] font-semibold">Conectada</span>
+                </span>
+              ) : (
+                <span>Acesso visitante / Modo não autenticado</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-rose-950/30 border border-rose-500/30 hover:border-rose-500/60 text-xs text-rose-300 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Encerrar Sessão</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openLoginModal}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#28B110] hover:bg-[#22950d] text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Fazer Login / Registrar</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Card de Carteira Solana */}
       <div className="bg-[#161C15] border border-[#252E24] rounded-2xl p-6 space-y-5">
