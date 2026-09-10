@@ -70,7 +70,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
           <div className="pt-2 border-t border-[#1E251E] flex items-center justify-center gap-1.5 text-[11px] text-[#6B7C6A]">
             <ShieldCheck className="w-3.5 h-3.5 text-[#28B110]" />
-            <span>Acesso rápido disponível para administradores</span>
+            <span>Autenticação segura com credenciais criptografadas</span>
           </div>
         </div>
       </div>

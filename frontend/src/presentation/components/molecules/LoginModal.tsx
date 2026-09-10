@@ -4,7 +4,6 @@ import {
   Lock,
   Mail,
   User as UserIcon,
-  ShieldCheck,
   Eye,
   EyeOff,
   AlertCircle,
@@ -18,40 +17,6 @@ interface LoginModalProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
-
-interface AdminPreset {
-  name: string;
-  email: string;
-  avatar: string;
-  role: string;
-}
-
-const SEEDED_ADMINS: AdminPreset[] = [
-  {
-    name: 'Germano',
-    email: 'germano@greenfield.com',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80',
-    role: 'ADMIN',
-  },
-  {
-    name: 'Dione',
-    email: 'dione@greenfield.com',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80',
-    role: 'ADMIN',
-  },
-  {
-    name: 'Kauê',
-    email: 'kaue@greenfield.com',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=80',
-    role: 'ADMIN',
-  },
-  {
-    name: 'Pedro',
-    email: 'pedro@greenfield.com',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80',
-    role: 'ADMIN',
-  },
-];
 
 export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen: propIsOpen,
@@ -111,7 +76,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
       setTimeout(() => {
         handleClose();
-      }, 700);
+      }, 600);
     } catch (err: any) {
       const detail =
         err?.response?.data?.detail ||
@@ -123,32 +88,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
-  const handleQuickAdminLogin = async (admin: AdminPreset) => {
-    setEmail(admin.email);
-    setPassword('admin123');
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      await login(admin.email, 'admin123');
-      setSuccessMessage(`Bem-vindo, ${admin.name}!`);
-      setTimeout(() => {
-        handleClose();
-      }, 700);
-    } catch (err: any) {
-      const detail =
-        err?.response?.data?.detail ||
-        err?.message ||
-        'Erro ao conectar conta admin.';
-      setErrorMessage(detail);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
+      onClick={handleClose}
+    >
       <div
-        className="relative w-full max-w-md bg-[#121712] border border-[#252E24] rounded-2xl shadow-2xl overflow-hidden p-6 sm:p-7 space-y-6"
+        className="relative w-full max-w-md bg-[#121712] border border-[#252E24] rounded-2xl shadow-2xl overflow-hidden p-6 sm:p-7 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header com Botão Fechar */}
@@ -162,14 +108,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 {mode === 'login' ? 'Acessar Greenfield' : 'Criar Conta'}
               </h2>
               <p className="text-[11px] text-[#889887]">
-                Autenticação real JWT integrada ao backend
+                Autenticação com e-mail e senha
               </p>
             </div>
           </div>
 
           <button
             onClick={handleClose}
-            className="text-[#889887] hover:text-white p-1 rounded-lg hover:bg-[#1A2319] transition-colors"
+            className="text-[#889887] hover:text-white p-1 rounded-lg hover:bg-[#1A2319] transition-colors cursor-pointer"
             title="Fechar"
             type="button"
           >
@@ -192,56 +138,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
         )}
 
-        {/* Seção de Acesso Rápido para Admins */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#687867] flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-[#28B110]" />
-              Equipe Admin (1-Click Login)
-            </span>
-            <span className="text-[10px] font-mono text-[#889887]">senha: admin123</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            {SEEDED_ADMINS.map((admin) => (
-              <button
-                key={admin.email}
-                type="button"
-                onClick={() => handleQuickAdminLogin(admin)}
-                disabled={isLoading}
-                className="flex items-center gap-2.5 p-2 rounded-xl bg-[#161C15] border border-[#252E24] hover:border-[#28B110]/50 hover:bg-[#1D2B1A] transition-all text-left group cursor-pointer disabled:opacity-50"
-              >
-                <img
-                  src={admin.avatar}
-                  alt={admin.name}
-                  className="w-8 h-8 rounded-lg object-cover border border-[#252E24] group-hover:border-[#28B110]/60"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white group-hover:text-[#28B110] truncate">
-                      {admin.name}
-                    </span>
-                    <span className="text-[9px] font-mono px-1 rounded bg-purple-900/50 text-purple-300 border border-purple-500/30">
-                      ADM
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-[#889887] font-mono truncate block">
-                    {admin.email.split('@')[0]}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Divisor */}
-        <div className="relative flex items-center justify-center">
-          <div className="border-t border-[#252E24] w-full" />
-          <span className="bg-[#121712] px-3 text-[10px] font-mono uppercase text-[#687867] absolute">
-            ou credenciais manuais
-          </span>
-        </div>
-
         {/* Abas Alternadoras */}
         <div className="flex rounded-xl bg-[#161C15] border border-[#252E24] p-1 text-xs">
           <button
@@ -250,7 +146,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               setMode('login');
               setErrorMessage(null);
             }}
-            className={`flex-1 py-1.5 rounded-lg font-medium transition-all ${
+            className={`flex-1 py-2 rounded-lg font-medium transition-all cursor-pointer ${
               mode === 'login'
                 ? 'bg-[#253223] text-[#28B110] font-bold shadow-xs'
                 : 'text-[#889887] hover:text-white'
@@ -264,7 +160,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               setMode('register');
               setErrorMessage(null);
             }}
-            className={`flex-1 py-1.5 rounded-lg font-medium transition-all ${
+            className={`flex-1 py-2 rounded-lg font-medium transition-all cursor-pointer ${
               mode === 'register'
                 ? 'bg-[#253223] text-[#28B110] font-bold shadow-xs'
                 : 'text-[#889887] hover:text-white'
@@ -288,7 +184,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Ex: Germano"
-                  className="w-full bg-[#161C15] border border-[#252E24] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-[#556354] focus:outline-none focus:border-[#28B110] transition-colors"
+                  className="w-full bg-[#161C15] border border-[#252E24] rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-[#556354] focus:outline-none focus:border-[#28B110] transition-colors"
                 />
               </div>
             </div>
@@ -304,7 +200,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu.email@greenfield.com"
-                className="w-full bg-[#161C15] border border-[#252E24] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-[#556354] focus:outline-none focus:border-[#28B110] transition-colors font-mono"
+                className="w-full bg-[#161C15] border border-[#252E24] rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-[#556354] focus:outline-none focus:border-[#28B110] transition-colors font-mono"
               />
             </div>
           </div>
@@ -312,7 +208,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs text-[#9EAE9D] font-medium">Senha</label>
-              <span className="text-[10px] text-[#687867]">mínimo 6 dígitos</span>
+              <span className="text-[10px] text-[#687867]">mínimo 6 caracteres</span>
             </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-[#889887] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -322,12 +218,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-[#161C15] border border-[#252E24] rounded-xl pl-9 pr-10 py-2 text-xs text-white placeholder-[#556354] focus:outline-none focus:border-[#28B110] transition-colors font-mono"
+                className="w-full bg-[#161C15] border border-[#252E24] rounded-xl pl-9 pr-10 py-2.5 text-xs text-white placeholder-[#556354] focus:outline-none focus:border-[#28B110] transition-colors font-mono"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#889887] hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#889887] hover:text-white cursor-pointer"
                 title={showPassword ? 'Ocultar' : 'Mostrar'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -338,7 +234,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           {mode === 'register' && (
             <p className="text-[11px] text-[#889887] flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#28B110] shrink-0" />
-              E-mails finalizados com @greenfield.com tornam-se ADMIN automaticamente.
+              E-mails com domínio @greenfield.com recebem papel ADMIN.
             </p>
           )}
 

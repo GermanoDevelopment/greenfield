@@ -93,8 +93,8 @@ export const ForbiddenPage: React.FC<ForbiddenPageProps> = ({
             <KeyRound className="w-4 h-4" />
             <span>
               {isAuthenticated
-                ? 'Trocar para Conta Admin (1-Click)'
-                : 'Conectar com Conta Admin'}
+                ? 'Entrar com Conta de Administrador'
+                : 'Conectar com Conta de Administrador'}
             </span>
           </button>
 
