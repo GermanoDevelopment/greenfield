@@ -21,8 +21,12 @@ class UserModel(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    github_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
+    github_id: Mapped[int | None] = mapped_column(
+        BigInteger, unique=True, nullable=True, index=True
+    )
     username: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512))
     wallet: Mapped[str | None] = mapped_column(String(44))
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="CONTRIBUTOR", index=True)

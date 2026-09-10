@@ -24,13 +24,19 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(description="Identificador único do usuário no Greenfield", examples=[1])
-    github_id: int = Field(description="ID numérico da conta no GitHub", examples=[12345678])
+    github_id: int | None = Field(
+        default=None, description="ID numérico da conta no GitHub", examples=[12345678]
+    )
     username: str = Field(
-        description="Username do usuário no GitHub", examples=["GermanoDevelopment"]
+        description="Username do usuário no GitHub ou plataforma",
+        examples=["GermanoDevelopment"],
+    )
+    email: str | None = Field(
+        default=None, description="E-mail do usuário", examples=["germano@greenfield.com"]
     )
     avatar_url: str | None = Field(
         default=None,
-        description="URL do avatar no GitHub",
+        description="URL do avatar do usuário",
         examples=["https://avatars.githubusercontent.com/u/12345678?v=4"],
     )
     wallet: str | None = Field(

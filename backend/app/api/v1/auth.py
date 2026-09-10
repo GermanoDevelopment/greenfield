@@ -1,18 +1,91 @@
 from fastapi import APIRouter, Query
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser, DbSession
-from app.core.exceptions import ValidationError
-from app.core.security import create_access_token
+from app.core.exceptions import AuthenticationError, ConflictError, ValidationError
+from app.core.security import create_access_token, hash_password, verify_password
 from app.db.base import UserModel
-from app.schemas.auth import TokenResponse
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserOut
 from app.services import github_service
 from app.services.github_service import GitHubServiceError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Login com e-mail e senha",
+)
+async def login(
+    db: DbSession,
+    payload: LoginRequest,
+) -> TokenResponse:
+    """
+    Autentica um usuário ou administrador utilizando e-mail e senha.
+    Retorna o token JWT Bearer e os dados cadastrais do usuário autenticado.
+    """
+    norm_email = payload.email.strip().lower()
+    stmt = select(UserModel).where(func.lower(UserModel.email) == norm_email)
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+
+    if (
+        user is None
+        or not user.password_hash
+        or not verify_password(payload.password, user.password_hash)
+    ):
+        raise AuthenticationError("E-mail ou senha incorretos")
+
+    token = create_access_token(user.id, user.username, email=user.email, role=user.role)
+    return TokenResponse(access_token=token, user=UserOut.model_validate(user))
+
+
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    summary="Registrar novo usuário com e-mail e senha",
+    status_code=201,
+)
+async def register(
+    db: DbSession,
+    payload: RegisterRequest,
+) -> TokenResponse:
+    """
+    Registra um novo usuário na aplicação com e-mail e senha.
+    Se o e-mail pertencer ao domínio @greenfield.com, concede automaticamente o papel ADMIN.
+    """
+    norm_email = payload.email.strip().lower()
+    norm_username = payload.username.strip()
+
+    stmt_email = select(UserModel).where(func.lower(UserModel.email) == norm_email)
+    res_email = await db.execute(stmt_email)
+    if res_email.scalar_one_or_none() is not None:
+        raise ConflictError("Este e-mail já está cadastrado")
+
+    stmt_user = select(UserModel).where(func.lower(UserModel.username) == norm_username.lower())
+    res_user = await db.execute(stmt_user)
+    if res_user.scalar_one_or_none() is not None:
+        raise ConflictError("Este nome de usuário já está em uso")
+
+    role = "ADMIN" if norm_email.endswith("@greenfield.com") else "CONTRIBUTOR"
+
+    user = UserModel(
+        email=norm_email,
+        username=norm_username,
+        password_hash=hash_password(payload.password),
+        role=role,
+        avatar_url=f"https://avatar.vercel.sh/{norm_username}",
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    token = create_access_token(user.id, user.username, email=user.email, role=user.role)
+    return TokenResponse(access_token=token, user=UserOut.model_validate(user))
 
 
 @router.get(

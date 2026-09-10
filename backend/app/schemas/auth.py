@@ -21,3 +21,33 @@ class GitHubLoginURL(BaseModel):
         description="URL de autorização do GitHub OAuth para redirecionamento",
         examples=["https://github.com/login/oauth/authorize?client_id=..."],
     )
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(
+        description="E-mail de autenticação",
+        examples=["germano@greenfield.com"],
+    )
+    password: str = Field(
+        min_length=6,
+        description="Senha de acesso do usuário",
+        examples=["admin123"],
+    )
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(
+        description="E-mail do novo usuário",
+        examples=["usuario@greenfield.com"],
+    )
+    password: str = Field(
+        min_length=6,
+        description="Senha de acesso",
+        examples=["admin123"],
+    )
+    username: str = Field(
+        min_length=2,
+        max_length=50,
+        description="Nome de usuário / apelido",
+        examples=["germano"],
+    )
