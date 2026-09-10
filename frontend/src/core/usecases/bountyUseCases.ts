@@ -42,7 +42,8 @@ export class BountyUseCases {
     repoId: string,
     approved: boolean
   ): Promise<Repository> {
-    if (maintainer.role !== 'maintainer' && maintainer.role !== 'both') {
+    const roleUpper = (maintainer.role || '').toUpperCase();
+    if (roleUpper !== 'MAINTAINER' && roleUpper !== 'ADMIN' && maintainer.role !== 'both' && maintainer.role !== 'maintainer') {
       throw new Error('Apenas mantenedores podem alterar a participação de repositórios nas rodadas.');
     }
 

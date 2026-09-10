@@ -14,7 +14,6 @@ import { UserRepository, GUEST_USER } from '../../infrastructure/repositories/Us
 import { GitHubService } from '../../infrastructure/services/GitHubService';
 import { SolanaService } from '../../infrastructure/solana/solanaService';
 import { BountyUseCases } from '../../core/usecases/bountyUseCases';
-import { MOCK_USERS } from '../../infrastructure/data/mockData';
 import { greenfieldApi, type ApiUserOut, setAuthToken } from '../../services/api';
 
 interface AppContextType {
@@ -100,7 +99,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const [currentUser, setCurrentUserState] = useState<User>(userRepo.getCurrentUser());
-  const [availableUsers, setAvailableUsers] = useState<User[]>(Object.values(MOCK_USERS));
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [bounties, setBounties] = useState<Bounty[]>([]);
   const [treasury, setTreasury] = useState<Treasury | null>(null);
