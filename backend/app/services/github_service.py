@@ -20,8 +20,9 @@ def _auth_headers(access_token: str | None = None) -> dict[str, str]:
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    if access_token:
-        headers["Authorization"] = f"Bearer {access_token}"
+    token = access_token or get_settings().github_token
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     return headers
 
 
@@ -120,3 +121,96 @@ async def build_login_url(state: str | None = None) -> str:
     if state:
         params["state"] = state
     return f"https://github.com/login/oauth/authorize?{urlencode(params)}"
+
+
+async def fetch_repository_issues(
+    owner: str, repo: str, access_token: str | None = None
+) -> list[dict[str, Any]]:
+    """Fetch open issues from a GitHub repo, filtering out PRs and excluding comments."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}/issues?state=open&per_page=100",
+            headers=_auth_headers(access_token),
+        )
+    if resp.status_code != 200:
+        return []
+
+    data = resp.json()
+    issues: list[dict[str, Any]] = []
+    for item in data:
+        # GitHub /issues endpoint also returns pull requests; filter them out
+        if "pull_request" in item:
+            continue
+
+        raw_labels = item.get("labels", [])
+        labels = [lbl["name"] if isinstance(lbl, dict) else str(lbl) for lbl in raw_labels]
+
+        issues.append(
+            {
+                "number": item["number"],
+                "title": item.get("title", ""),
+                "body": item.get("body"),
+                "html_url": item["html_url"],
+                "state": item.get("state", "open"),
+                "author_username": item.get("user", {}).get("login"),
+                "labels": labels,
+            }
+        )
+    return issues
+
+
+async def fetch_issue_details(
+    owner: str, repo: str, number: int, access_token: str | None = None
+) -> dict[str, Any] | None:
+    """Fetch details of a single GitHub issue without comments."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}/issues/{number}",
+            headers=_auth_headers(access_token),
+        )
+    if resp.status_code != 200:
+        return None
+
+    item = resp.json()
+    if "pull_request" in item:
+        return None
+
+    raw_labels = item.get("labels", [])
+    labels = [lbl["name"] if isinstance(lbl, dict) else str(lbl) for lbl in raw_labels]
+
+    return {
+        "number": item["number"],
+        "title": item.get("title", ""),
+        "body": item.get("body"),
+        "html_url": item["html_url"],
+        "state": item.get("state", "open"),
+        "author_username": item.get("user", {}).get("login"),
+        "labels": labels,
+    }
+
+
+async def fetch_repository_details(
+    owner: str, repo: str, access_token: str | None = None
+) -> dict[str, Any] | None:
+    """Fetch live metadata of a GitHub repository from the REST API."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}",
+            headers=_auth_headers(access_token),
+        )
+    if resp.status_code != 200:
+        return None
+
+    data = resp.json()
+    return {
+        "owner": data.get("owner", {}).get("login", owner),
+        "name": data.get("name", repo),
+        "full_name": data.get("full_name", f"{owner}/{repo}"),
+        "github_repo_id": data.get("id"),
+        "description": data.get("description"),
+        "default_branch": data.get("default_branch", "main"),
+        "open_issues_count": data.get("open_issues_count", 0),
+        "stargazers_count": data.get("stargazers_count", 0),
+        "html_url": data.get("html_url", f"https://github.com/{owner}/{repo}"),
+    }
+

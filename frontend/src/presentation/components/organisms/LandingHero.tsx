@@ -6,17 +6,21 @@ import { useApp } from '../../context/AppContext';
 
 export const LandingHero: React.FC = () => {
   const navigate = useNavigate();
-  const { setCurrentUser, availableUsers } = useApp();
+  const { isAuthenticated, openLoginModal } = useApp();
 
   const handleEnterAsMaintainer = () => {
-    const maintainer = availableUsers.find((u) => u.role === 'maintainer');
-    if (maintainer) setCurrentUser(maintainer);
-    navigate('/dashboard');
+    if (!isAuthenticated) {
+      openLoginModal();
+      return;
+    }
+    navigate('/bounties/new');
   };
 
   const handleEnterAsDeveloper = () => {
-    const dev = availableUsers.find((u) => u.role === 'developer');
-    if (dev) setCurrentUser(dev);
+    if (!isAuthenticated) {
+      openLoginModal();
+      return;
+    }
     navigate('/dashboard');
   };
 

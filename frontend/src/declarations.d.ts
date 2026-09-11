@@ -52,4 +52,26 @@ declare module 'lucide-react' {
   export const Bell: LucideIcon;
   export const AlertTriangle: LucideIcon;
   export const Search: LucideIcon;
+  export const FolderGit2: LucideIcon;
+  export const ListTodo: LucideIcon;
+  export const Menu: LucideIcon;
+  export const BarChart3: LucideIcon;
+  export const XCircle: LucideIcon;
+  export const Plus: LucideIcon;
+  export const Users: LucideIcon;
+  export const TrendingUp: LucideIcon;
+  export const Save: LucideIcon;
+  export const GitFork: LucideIcon;
+  export const Send: LucideIcon;
+  export const Mail: LucideIcon;
+  export const LogIn: LucideIcon;
+  export const LogOut: LucideIcon;
+  export const KeyRound: LucideIcon;
+  export const ChevronDown: LucideIcon;
+  export const Eye: LucideIcon;
+  export const EyeOff: LucideIcon;
+  export const Compass: LucideIcon;
+  export const FileQuestion: LucideIcon;
+  export const Home: LucideIcon;
+  export const ShieldX: LucideIcon;
 }

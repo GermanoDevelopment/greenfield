@@ -8,13 +8,13 @@ import React, {
   type ReactNode,
 } from 'react';
 import type { Bounty, Claim, Repository, Treasury, User } from '../../core/domain/types';
-import { LocalStorageBountyRepository } from '../../infrastructure/repositories/LocalStorageBountyRepository';
+import { HybridBountyRepository } from '../../infrastructure/repositories/HybridBountyRepository';
 import { LocalStorageTreasuryRepository } from '../../infrastructure/repositories/LocalStorageTreasuryRepository';
-import { UserRepository } from '../../infrastructure/repositories/UserRepository';
+import { UserRepository, GUEST_USER } from '../../infrastructure/repositories/UserRepository';
 import { GitHubService } from '../../infrastructure/services/GitHubService';
 import { SolanaService } from '../../infrastructure/solana/solanaService';
 import { BountyUseCases } from '../../core/usecases/bountyUseCases';
-import { MOCK_USERS } from '../../infrastructure/data/mockData';
+import { greenfieldApi, type ApiUserOut, setAuthToken } from '../../services/api';
 
 interface AppContextType {
   currentUser: User;
@@ -24,6 +24,15 @@ interface AppContextType {
   bounties: Bounty[];
   treasury: Treasury | null;
   loading: boolean;
+  isBackendConnected: boolean;
+  isAuthenticated: boolean;
+  authInitialized: boolean;
+  isLoginModalOpen: boolean;
+  openLoginModal: () => void;
+  closeLoginModal: () => void;
+  login: (email: string, password: string) => Promise<User>;
+  register: (email: string, password: string, username?: string) => Promise<User>;
+  logout: () => void;
   bountyUseCases: BountyUseCases;
   gitHubService: GitHubService;
   solanaService: SolanaService;
@@ -60,7 +69,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const bountyRepo = useMemo(() => new LocalStorageBountyRepository(), []);
+  const bountyRepo = useMemo(() => new HybridBountyRepository(), []);
   const treasuryRepo = useMemo(() => new LocalStorageTreasuryRepository(), []);
   const userRepo = useMemo(() => new UserRepository(), []);
   const gitHubService = useMemo(() => new GitHubService(), []);
@@ -71,16 +80,56 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [bountyRepo, treasuryRepo, solanaService, gitHubService]
   );
 
+  const apiUserToUser = useCallback((apiUser: ApiUserOut): User => {
+    return {
+      id: String(apiUser.id),
+      github_id: apiUser.github_id ?? null,
+      github_username: apiUser.username,
+      email: apiUser.email || null,
+      name: apiUser.username,
+      avatar_url:
+        apiUser.avatar_url ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          apiUser.username
+        )}&background=28B110&color=fff`,
+      wallet_address: apiUser.wallet || '',
+      role: apiUser.role,
+      created_at: apiUser.created_at,
+    };
+  }, []);
+
   const [currentUser, setCurrentUserState] = useState<User>(userRepo.getCurrentUser());
-  const [availableUsers, setAvailableUsers] = useState<User[]>(Object.values(MOCK_USERS));
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [bounties, setBounties] = useState<Bounty[]>([]);
   const [treasury, setTreasury] = useState<Treasury | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return !!localStorage.getItem('greenfield_jwt');
+    } catch {
+      return false;
+    }
+  });
+  const [authInitialized, setAuthInitialized] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('greenfield_jwt');
+    } catch {
+      return true;
+    }
+  });
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+
+  const openLoginModal = useCallback(() => setIsLoginModalOpen(true), []);
+  const closeLoginModal = useCallback(() => setIsLoginModalOpen(false), []);
 
   const refreshData = useCallback(async () => {
     setLoading(true);
     try {
+      const connected = await bountyRepo.checkConnectivity();
+      setIsBackendConnected(connected);
+
       const [allBounties, currTreasury, users, repos] = await Promise.all([
         bountyRepo.getAll(),
         treasuryRepo.getTreasury(),
@@ -89,12 +138,86 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ]);
       setBounties(allBounties);
       setTreasury(currTreasury);
-      setAvailableUsers(users);
+
+      let mergedUsers = users;
+      if (connected) {
+        try {
+          const apiUsers = await greenfieldApi.listUsers();
+          if (apiUsers && apiUsers.length > 0) {
+            mergedUsers = apiUsers.map(apiUserToUser);
+          }
+        } catch {
+          // Mantém users locais em caso de falha de listagem
+        }
+      }
+      setAvailableUsers(mergedUsers);
       setRepositories(repos);
     } finally {
       setLoading(false);
     }
-  }, [bountyRepo, treasuryRepo, userRepo, gitHubService]);
+  }, [bountyRepo, treasuryRepo, userRepo, gitHubService, apiUserToUser]);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await greenfieldApi.login({ email, password });
+      const user = apiUserToUser(res.user);
+      userRepo.setCurrentUser(user);
+      setCurrentUserState(user);
+      setIsAuthenticated(true);
+      await refreshData();
+      return user;
+    },
+    [userRepo, apiUserToUser, refreshData]
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, username?: string) => {
+      const res = await greenfieldApi.register({ email, password, username });
+      const user = apiUserToUser(res.user);
+      userRepo.setCurrentUser(user);
+      setCurrentUserState(user);
+      setIsAuthenticated(true);
+      await refreshData();
+      return user;
+    },
+    [userRepo, apiUserToUser, refreshData]
+  );
+
+  const logout = useCallback(() => {
+    greenfieldApi.logout();
+    setIsAuthenticated(false);
+    userRepo.setCurrentUser(GUEST_USER);
+    setCurrentUserState(GUEST_USER);
+  }, [userRepo]);
+
+  // Checa token existente na inicialização
+  useEffect(() => {
+    const checkAuthOnBoot = async () => {
+      const token = localStorage.getItem('greenfield_jwt');
+      if (token) {
+        try {
+          const me = await greenfieldApi.getMe();
+          const user = apiUserToUser(me);
+          userRepo.setCurrentUser(user);
+          setCurrentUserState(user);
+          setIsAuthenticated(true);
+        } catch {
+          setAuthToken(null);
+          setIsAuthenticated(false);
+          userRepo.setCurrentUser(GUEST_USER);
+          setCurrentUserState(GUEST_USER);
+        } finally {
+          setAuthInitialized(true);
+        }
+      } else {
+        setIsAuthenticated(false);
+        userRepo.setCurrentUser(GUEST_USER);
+        setCurrentUserState(GUEST_USER);
+        setAuthInitialized(true);
+      }
+    };
+    checkAuthOnBoot();
+  }, [userRepo, apiUserToUser]);
 
   useEffect(() => {
     refreshData();
@@ -111,10 +234,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const resetToDefaults = useCallback(async () => {
     bountyRepo.reset();
     await treasuryRepo.resetToDefault();
-    userRepo.setCurrentUser(MOCK_USERS.maintainer);
-    setCurrentUserState(MOCK_USERS.maintainer);
+    if (!isAuthenticated) {
+      userRepo.setCurrentUser(GUEST_USER);
+      setCurrentUserState(GUEST_USER);
+    }
     await refreshData();
-  }, [bountyRepo, treasuryRepo, userRepo, refreshData]);
+  }, [bountyRepo, treasuryRepo, userRepo, refreshData, isAuthenticated]);
 
   const toggleRepositoryApproval = useCallback(
     async (repoId: string, approved: boolean) => {
@@ -239,6 +364,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         bounties,
         treasury,
         loading,
+        isBackendConnected,
+        isAuthenticated,
+        authInitialized,
+        isLoginModalOpen,
+        openLoginModal,
+        closeLoginModal,
+        login,
+        register,
+        logout,
         bountyUseCases,
         gitHubService,
         solanaService,

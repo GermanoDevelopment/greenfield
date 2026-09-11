@@ -8,14 +8,12 @@ import { Sparkles, Coins } from 'lucide-react';
 import type { Bounty } from '../../core/domain/types';
 
 export const ClaimPage: React.FC = () => {
-  const { bounties, currentUser, setCurrentUser, availableUsers } = useApp();
+  const { bounties, currentUser } = useApp();
   const [selectedBounty, setSelectedBounty] = useState<Bounty | null>(null);
 
   // Busca todas as bounties em estado CLAIMABLE
   const claimableList = bounties.filter((b) => b.status === 'CLAIMABLE');
   const myClaimableList = claimableList.filter((b) => b.developer_id === currentUser.id);
-
-  const carolUser = availableUsers.find((u) => u.github_username === 'carol-sol');
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto">
@@ -99,23 +97,6 @@ export const ClaimPage: React.FC = () => {
               Apenas bounties cujos PRs foram efetivamente mergeados tornam-se <code>CLAIMABLE</code>.
             </p>
           </div>
-
-          {carolUser && carolUser.id !== currentUser.id && (
-            <div className="mt-2 p-4 rounded-xl bg-[#145907]/30 border border-[#28B110]/40 flex flex-col sm:flex-row items-center gap-4 text-left">
-              <div>
-                <strong className="text-sm text-[#D9EED6] block">Dica para a Demonstração:</strong>
-                <span className="text-xs text-slate-300">
-                  O usuário <strong>@carol-sol</strong> possui uma bounty pronta de $100 USDC (#131).
-                </span>
-              </div>
-              <button
-                onClick={() => setCurrentUser(carolUser)}
-                className="px-4 py-2 rounded-lg bg-[#145907] hover:bg-[#0e4104] text-[#D9EED6] border border-[#28B110]/40 text-xs font-semibold cursor-pointer shrink-0 transition-colors"
-              >
-                Alternar para @carol-sol
-              </button>
-            </div>
-          )}
         </div>
       )}
 

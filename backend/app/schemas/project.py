@@ -1,13 +1,21 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.repository import RepositoryOut
 from app.schemas.user import UserPublicOut
 
 
 class ProjectBase(BaseModel):
-    github_repo: str
-    description: str | None = None
+    github_repo: str = Field(
+        description="Repositório principal do projeto no formato 'owner/repo'",
+        examples=["GermanoDevelopment/greenfield"],
+    )
+    description: str | None = Field(
+        default=None,
+        description="Descrição detalhada do projeto ou ecossistema",
+        examples=["Ecossistema de recompensas para desenvolvedores na Solana"],
+    )
 
     @field_validator("github_repo")
     @classmethod
@@ -24,14 +32,24 @@ class ProjectCreate(ProjectBase):
 
 
 class ProjectUpdate(BaseModel):
-    description: str | None = None
+    description: str | None = Field(
+        default=None,
+        description="Atualização da descrição do projeto",
+        examples=["Nova descrição atualizada do ecossistema"],
+    )
 
 
 class ProjectOut(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    owner_id: int
-    owner: UserPublicOut | None = None
-    created_at: datetime
-    updated_at: datetime
+    id: int = Field(description="Identificador único do projeto", examples=[1])
+    owner_id: int = Field(
+        description="ID do usuário mantenedor proprietário do projeto", examples=[1]
+    )
+    owner: UserPublicOut | None = Field(default=None, description="Dados públicos do mantenedor")
+    repositories: list[RepositoryOut] = Field(
+        default=[],
+        description="Lista de múltiplos repositórios GitHub monitorados sob este projeto",
+    )
+    created_at: datetime = Field(description="Data e hora de criação do projeto")
+    updated_at: datetime = Field(description="Data e hora da última atualização do projeto")

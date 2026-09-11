@@ -19,10 +19,15 @@ class Settings(BaseSettings):
     github_client_secret: str = ""
     github_redirect_uri: str = "http://localhost:8080/api/v1/auth/github/callback"
     github_webhook_secret: str = ""
+    github_token: str | None = None
 
     solana_rpc_url: str = "https://api.devnet.solana.com"
     solana_program_id: str = ""
     usdc_mint_devnet: str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    solana_treasury_keypair_path: str | None = None
+    solana_treasury_private_key: str | None = None
+
+    admin_github_usernames: list[str] = ["GermanoDevelopment"]
 
     @property
     def database_url_sync(self) -> str:
