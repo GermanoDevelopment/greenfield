@@ -166,7 +166,6 @@ greenfield/
 ├── backend/             # FastAPI app, Alembic migrations, pytest
 ├── frontend/            # React app (core / infrastructure / presentation)
 ├── contract/            # Anchor program (scaffold)
-├── demo-video/          # Demo video (Remotion)
 ├── docker-compose.yml   # Postgres + backend + frontend
 └── FRONTEND-REQUIREMENTS.md
 ```
