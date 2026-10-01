@@ -1,369 +1,189 @@
 # 🌱 Greenfield
 
-> Transforme contribuições open source em recompensas em USDC na Solana.
+> Turn open source contributions into USDC rewards on Solana.
 
-Greenfield liga **issues do GitHub** a **bounties**. Mantenedores precificam uma issue, contribuidores se candidatam e abrem um PR, e o **merge confirmado** libera o pagamento em USDC para a carteira do contribuidor.
+Greenfield links **GitHub issues** to **bounties**. Maintainers price an issue, contributors apply and open a PR, and a **confirmed merge** pays USDC to the contributor's wallet.
 
 ```mermaid
 flowchart LR
-    A[Issue no GitHub] --> B[Bounty criada<br/>100 pontos = US$ 1]
-    B --> C[Contribuidor se candidata]
-    C --> D[Mantenedor aceita<br/>recompensa congelada]
-    D --> E[PR enviado]
-    E --> F{PR mergeado?}
-    F -- "sim" --> G[Pagamento em USDC<br/>na Solana]
-    F -- "não" --> E
+    A[GitHub issue] --> B[Bounty<br/>100 points = $1]
+    B --> C[Contributor applies]
+    C --> D[Maintainer accepts<br/>reward frozen]
+    D --> E[PR submitted]
+    E --> F{PR merged?}
+    F -- "yes" --> G[USDC paid<br/>on Solana]
+    F -- "no" --> E
 ```
 
-**Repositório:** [github.com/GermanoDevelopment/greenfield](https://github.com/GermanoDevelopment/greenfield)
+Repository: [github.com/GermanoDevelopment/greenfield](https://github.com/GermanoDevelopment/greenfield)
 
----
+## Stack
 
-## Sumário
+- **Backend:** FastAPI, SQLAlchemy 2 (async), asyncpg, Alembic. Port `8080`.
+- **Frontend:** React 19, Vite, TypeScript, Tailwind, `@solana/kit`. Port `5173` (dev) or `3000` (Docker, Nginx).
+- **Database:** Postgres 15. Port `5432`.
+- **Contract:** Anchor (Rust). A scaffold today, not used for payouts.
 
-- [Quickstart](#-quickstart)
-- [Como funciona](#-como-funciona)
-- [Variáveis de ambiente](#-variáveis-de-ambiente)
-- [Comandos do dia a dia](#-comandos-do-dia-a-dia)
-- [API](#-api)
-- [Estrutura do repositório](#-estrutura-do-repositório)
-- [Troubleshooting](#-troubleshooting)
+## Quickstart
 
----
+Requirements: Docker with Compose. For local development also Python 3.12+, [uv](https://docs.astral.sh/uv/) and Node.js 20+.
 
-## ⚡ Quickstart
-
-### Pré-requisitos
-
-| Ferramenta | Versão | Para quê |
-|---|---|---|
-| Docker + Docker Compose | recente | Postgres (e a stack completa no Modo A) |
-| Python | 3.12+ | Backend (Modo B) |
-| [uv](https://docs.astral.sh/uv/) | recente | Gerenciar dependências do backend |
-| Node.js + npm | 20+ | Frontend (Modo B) |
-| Solana CLI, Rust, Anchor | opcional | Só se for mexer em `contract/` |
-
-```bash
-docker --version && docker compose version
-python3 --version && uv --version
-node --version && npm --version
-```
-
-### Escolha um modo
-
-| | Modo A: Docker | Modo B: Híbrido ⭐ |
-|---|---|---|
-| Para quê | Ver o app funcionando, sem codar | Desenvolver com hot-reload |
-| O que roda no Docker | Postgres + backend + frontend | Só o Postgres |
-| Frontend | `http://localhost:3000` (Nginx) | `http://localhost:5173` (Vite HMR) |
-
-### Modo A: tudo via Docker
+### Option A: everything in Docker
 
 ```bash
 docker compose up -d --build
-docker compose ps
 curl http://localhost:8080/api/v1/health
 ```
 
-O backend aplica `alembic upgrade head` sozinho ao subir. Depois abra:
-
-- App: http://localhost:3000
-- Swagger: http://localhost:8080/docs
+Open http://localhost:3000 (app) and http://localhost:8080/docs (Swagger). Migrations run on startup.
 
 ```bash
-docker compose logs -f backend frontend   # acompanhar logs
-docker compose down                       # parar, mantendo os dados
-docker compose down -v                    # parar e APAGAR o banco local
+docker compose logs -f backend frontend
+docker compose down       # stop, keep data
+docker compose down -v    # stop and wipe the local database
 ```
 
-> **Atenção:** o frontend do Docker é um build estático. O `VITE_API_URL` é embutido **na hora do build**, e o `.env` do frontend é ignorado pelo `.dockerignore`. Sem ele, o app chama `http://localhost:8080/api/v1` direto do navegador (o CORS já libera a porta `3000`). Mudou algo do frontend? Rode `docker compose up -d --build frontend`.
+The Docker frontend is a static build: `VITE_API_URL` is baked in at build time and `frontend/.env` is ignored. It defaults to `http://localhost:8080/api/v1`. After frontend changes, run `docker compose up -d --build frontend`.
 
-### Modo B: desenvolvimento local híbrido
+### Option B: local development (recommended)
 
-**1. Banco**
+Postgres in Docker, backend and frontend on your machine with hot reload.
 
 ```bash
+# 1. Database
 docker compose up -d postgres
-pg_isready -h localhost -p 5432 -U greenfield || docker compose logs postgres
-```
 
-**2. Backend** (terminal 1)
-
-```bash
+# 2. Backend (terminal 1)
 cd backend
 cp .env.example .env
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --port 8080
-```
 
-Confira: http://localhost:8080/api/v1/health e http://localhost:8080/docs
-
-> O `DATABASE_URL=postgres://...` do `.env.example` já funciona. O backend converte para `postgresql+asyncpg://` sozinho.
-
-**3. Frontend** (terminal 2)
-
-```bash
+# 3. Frontend (terminal 2)
 cd frontend
 cp .env.example .env
 npm install
 npm run dev
 ```
 
-Abra http://localhost:5173
+Open http://localhost:5173. The default `DATABASE_URL` in `.env.example` works as is; the backend converts it to `postgresql+asyncpg://`.
 
-Pronto: o backend recarrega com `--reload` e o frontend com HMR.
+### First login
 
-### Primeiro acesso
+- **Email and password:** sign up in the app's login modal, or `POST /api/v1/auth/register`.
+- **Seeded dev admins:** created on every backend boot with the password `admin123` (see `backend/app/services/admin_seed.py`).
+- **GitHub OAuth:** needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
 
-Existem três caminhos de login, e só o último exige configuração:
+> ⚠️ The seeded admins are for development only. Remove them or change the passwords, and set your own `JWT_SECRET`, before any shared deployment.
 
-| Caminho | Como | Precisa configurar? |
-|---|---|---|
-| **E-mail e senha** | Modal de login/cadastro do app, ou `POST /auth/register` | Não |
-| **Admin de desenvolvimento** | O backend cria contas ADMIN de seed a cada boot, todas com a senha `admin123`. Veja `backend/app/services/admin_seed.py` | Não |
-| **GitHub OAuth** | `GET /auth/github/login` | Sim: `GITHUB_CLIENT_ID` e `GITHUB_CLIENT_SECRET` |
+## Configuration
 
-> ⚠️ **Só para desenvolvimento.** As contas de seed usam senha pública. Antes de qualquer deploy compartilhado, remova o seed ou troque as senhas. Defina também um `JWT_SECRET` próprio.
+The `.env.example` files work out of the box.
 
----
+**Backend** (`backend/.env`):
 
-## 🧭 Como funciona
+- `DATABASE_URL`: Postgres connection string. Docker Compose overrides the host to `postgres`.
+- `JWT_SECRET`: **change in production**. `JWT_EXPIRATION_MINUTES` defaults to `1440`.
+- `CORS_ORIGINS`: allowed frontend origins. Defaults to ports `5173` and `3000`.
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`: GitHub OAuth.
+- `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **If empty, any payload is accepted.**
+- `GITHUB_TOKEN`: token for GitHub API calls when the user has none.
+- `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login.
+- `SOLANA_RPC_URL`: defaults to devnet.
+- `SOLANA_TREASURY_KEYPAIR_PATH` or `SOLANA_TREASURY_PRIVATE_KEY` (base58): treasury that pays bounties.
+- `USDC_MINT_DEVNET`: USDC mint used for payouts.
 
-### Arquitetura
+**Frontend** (`frontend/.env`). Vite reads these at boot, so restart `npm run dev` after changes:
 
-```mermaid
-flowchart TB
-    U([Navegador + carteira Solana])
-    subgraph stack["Docker ou local"]
-        FE[Frontend<br/>React + Vite]
-        BE[Backend<br/>FastAPI]
-        DB[(Postgres 15)]
-    end
-    GH[GitHub<br/>API e webhooks]
-    SOL[Solana RPC<br/>devnet]
+- `VITE_API_URL`: defaults to `http://localhost:8080/api/v1`.
+- `VITE_SOLANA_RPC_URL` and `VITE_SOLANA_CHAIN`: default to devnet.
 
-    U --> FE
-    FE -- "/api/v1" --> BE
-    BE --> DB
-    BE -- "issues, PRs, OAuth" --> GH
-    GH -- "webhook: PR mergeado" --> BE
-    BE -- "transferência de USDC (SPL)" --> SOL
-    FE -. "RPC da carteira" .-> SOL
-```
+## How it works
 
-| Parte | Stack | Porta local |
-|---|---|---|
-| Postgres | `postgres:15-alpine` | `5432` |
-| Backend | FastAPI, SQLAlchemy 2 (async), asyncpg, Alembic | `8080` |
-| Frontend (Docker) | Nginx servindo `dist/` | `3000` |
-| Frontend (dev) | React 19, Vite, TypeScript, Tailwind, `@solana/kit` | `5173` |
-| Contract | Anchor (Rust) | localnet / devnet |
+A bounty moves `OPEN → ASSIGNED → SUBMITTED → COMPLETED`. It can be `CANCELLED` from any non-final state, and a rejected PR sends it back from `SUBMITTED` to `ASSIGNED`. `COMPLETED` and `CANCELLED` are final.
 
-### Ciclo de vida de uma bounty
+It completes when the GitHub webhook reports a merged PR, or when the issuer or an admin calls `POST /bounties/{id}/complete`. Either way the backend verifies the merge first.
 
-```mermaid
-stateDiagram-v2
-    [*] --> OPEN
-    OPEN --> ASSIGNED: candidato aceito
-    OPEN --> CANCELLED
-    ASSIGNED --> SUBMITTED: PR enviado
-    ASSIGNED --> CANCELLED
-    SUBMITTED --> COMPLETED: PR mergeado
-    SUBMITTED --> ASSIGNED: PR rejeitado
-    SUBMITTED --> CANCELLED
-    COMPLETED --> [*]
-    CANCELLED --> [*]
-```
+Rules:
 
-`COMPLETED` e `CANCELLED` são finais. A conclusão acontece de duas formas: o webhook do GitHub recebe o PR mergeado, ou o emissor/admin chama `POST /bounties/{id}/complete`. Nos dois casos o backend confere o merge antes de concluir.
+- **Merge required.** If the backend cannot verify the merge, the bounty does not complete.
+- **Frozen reward.** The reward can only change while `OPEN`.
+- **One payout per issue.** `complete` is only valid from `SUBMITTED`.
+- **Fixed conversion.** `100 points = $1 USDC = 1,000,000 micro-USDC`.
 
-### Regras do protocolo
+### Payouts today
 
-1. **Merge obrigatório.** A conclusão só acontece com o PR mergeado no GitHub. Se o backend não conseguir verificar, a bounty não conclui.
-2. **Recompensa congelada.** O valor só pode ser ajustado em `OPEN`. Depois que um candidato é aceito (`ASSIGNED`), ele não muda.
-3. **Sem double-claim.** Uma issue é liquidada uma única vez, e o `complete` só vale a partir de `SUBMITTED`.
-4. **Conversão fixa.** `100 pontos = US$ 1 USDC = 1.000.000 micro-USDC`.
+Payouts do **not** go through the Anchor contract (it only has `initialize`). On completion the backend sends SPL USDC from the treasury to the contributor's wallet using [`solinpy`](https://pypi.org/project/solinpy/).
 
-### Como o pagamento é feito hoje
+- Without a configured treasury, the backend uses an ephemeral keypair with no funds.
+- If the contributor has no linked wallet, the bounty completes without a payout.
+- If the transfer fails for any reason (no `solinpy`, RPC down, empty treasury), the backend stores a **simulated** signature, `sim_<wallet>_<amount>`, and carries on. That is not a real transaction.
+- For real devnet payouts, run `uv pip install solinpy --no-deps` in `backend/` and configure the treasury.
 
-O pagamento **não passa pelo contrato Anchor**. Ao concluir, o backend faz uma transferência SPL de USDC da **tesouraria** para a carteira do contribuidor, usando o [`solinpy`](https://pypi.org/project/solinpy/).
-
-- A tesouraria vem de `SOLANA_TREASURY_KEYPAIR_PATH` ou `SOLANA_TREASURY_PRIVATE_KEY`. Sem nenhuma das duas, o backend gera um keypair efêmero sem fundos.
-- Se o contribuidor **não tem carteira vinculada**, a bounty é concluída sem pagamento.
-- Se a transferência falhar por qualquer motivo (sem `solinpy`, RPC fora, tesouraria sem USDC), o backend grava uma assinatura **simulada** no formato `sim_<carteira>_<valor>` e segue. Em desenvolvimento isso mantém o fluxo de ponta a ponta. **Uma assinatura `sim_...` não é uma transação real.**
-- O `contract/` é um scaffold: tem só a instrução `initialize`. Ele não é necessário para rodar nem para testar o fluxo.
-
-Para pagar de verdade na devnet, instale o `solinpy` e configure a tesouraria:
+## Commands
 
 ```bash
-cd backend
-uv pip install solinpy --no-deps
-```
+# backend/
+uv run uvicorn app.main:app --reload --port 8080
+uv run alembic upgrade head
+uv run alembic revision --autogenerate -m "message"
+uv run pytest                    # in-memory SQLite, no Postgres needed
+uv run ruff check .
+uv run ruff format --check .
 
----
+# frontend/
+npm run dev
+npm run build                    # tsc + build to dist/
+npm run preview
+npm run lint                     # oxlint
 
-## 🔧 Variáveis de ambiente
-
-Para rodar o fluxo básico, copie os `.env.example` e não mude nada.
-
-### Backend (`backend/.env`)
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-| Variável | Padrão | Quando mexer |
-|---|---|---|
-| `PORT` | `8080` | Quase nunca. Não muda a porta do Uvicorn: no Modo B use `--port` |
-| `DATABASE_URL` | `postgres://greenfield:greenfield@localhost:5432/greenfield` | Quase nunca. No Docker Compose é sobrescrita para o host `postgres` |
-| `JWT_SECRET` | `supersecretjwtkey_change_in_production` | **Sempre em produção** |
-| `JWT_EXPIRATION_MINUTES` | `1440` | Para mudar a duração do token |
-| `CORS_ORIGINS` | `["http://localhost:5173","http://localhost:3000"]` | Se o frontend usar outra origem |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | vazio | Para testar OAuth real do GitHub |
-| `GITHUB_REDIRECT_URI` | `http://localhost:8080/api/v1/auth/github/callback` | Se mudar host ou porta do backend |
-| `GITHUB_WEBHOOK_SECRET` | vazio | Para validar a assinatura HMAC do webhook. **Vazio aceita qualquer payload** |
-| `SOLANA_RPC_URL` | `https://api.devnet.solana.com` | Para usar outro cluster |
-| `SOLANA_PROGRAM_ID` | vazio | Reservado para o contrato on-chain |
-
-Opcionais, lidas pelo `Settings` mas ausentes do `.env.example`:
-
-| Variável | Padrão | Para quê |
-|---|---|---|
-| `GITHUB_TOKEN` | nenhum | Token para a API do GitHub quando não há token do usuário |
-| `SOLANA_TREASURY_KEYPAIR_PATH` | nenhum | Caminho do JSON da tesouraria que paga as bounties |
-| `SOLANA_TREASURY_PRIVATE_KEY` | nenhum | Chave privada da tesouraria em base58 (alternativa ao caminho) |
-| `USDC_MINT_DEVNET` | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` | Mint do USDC usado nos pagamentos |
-| `ADMIN_GITHUB_USERNAMES` | `["GermanoDevelopment"]` | Usernames do GitHub que entram como ADMIN via OAuth |
-
-### Frontend (`frontend/.env`)
-
-```bash
-cp frontend/.env.example frontend/.env
-```
-
-| Variável | Padrão | Observação |
-|---|---|---|
-| `VITE_API_URL` | `http://localhost:8080/api/v1` | O Vite lê no boot: reinicie o `npm run dev` ao mudar |
-| `VITE_SOLANA_RPC_URL` | `https://api.devnet.solana.com` | Não precisa mudar em dev |
-| `VITE_SOLANA_CHAIN` | `solana:devnet` | Não precisa mudar em dev |
-
----
-
-## 🧪 Comandos do dia a dia
-
-### Backend (em `backend/`)
-
-```bash
-uv run uvicorn app.main:app --reload --port 8080       # servidor de dev
-uv run alembic upgrade head                            # aplicar migrations
-uv run alembic revision --autogenerate -m "descricao"  # nova migration após mudar models
-uv run pytest                                          # testes
-uv run ruff check .                                    # lint
-uv run ruff format --check .                           # checar formatação
-```
-
-Os testes usam SQLite em memória (`aiosqlite`), então rodam **sem Postgres**.
-
-### Frontend (em `frontend/`)
-
-```bash
-npm run dev       # dev com HMR em :5173
-npm run build     # typecheck (tsc) + build em dist/
-npm run preview   # servir o build local
-npm run lint      # oxlint
-```
-
-### Docker (na raiz)
-
-```bash
-docker compose up -d --build     # tudo
-docker compose up -d postgres    # só o banco (Modo B)
-docker compose logs -f backend   # logs do backend
-docker compose down              # parar
-docker compose down -v           # parar e apagar o volume postgres_data
-```
-
-### Contract (opcional, em `contract/`)
-
-```bash
+# contract/ (optional)
 npm install
 anchor build
 anchor test
 ```
 
-`Anchor.toml` usa `cluster = "Localnet"` e a carteira `~/.config/solana/id.json`. Program ID (localnet e devnet): `Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS`. Para a devnet: `solana config set --url devnet && solana airdrop 2`.
+The contract uses the Anchor placeholder program ID `Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS` and the wallet at `~/.config/solana/id.json`. For devnet: `solana config set --url devnet && solana airdrop 2`.
 
----
+## API
 
-## 📡 API
+Everything lives under `/api/v1`:
 
-Toda a API vive sob `/api/v1`. A documentação interativa é gerada pelo FastAPI:
+- Swagger: http://localhost:8080/docs
+- ReDoc: http://localhost:8080/redoc
+- OpenAPI JSON: http://localhost:8080/openapi.json
+- Health: http://localhost:8080/api/v1/health
 
-| Recurso | URL |
-|---|---|
-| Swagger UI | http://localhost:8080/docs |
-| ReDoc | http://localhost:8080/redoc |
-| OpenAPI JSON | http://localhost:8080/openapi.json |
-| Health check | http://localhost:8080/api/v1/health |
+Route groups: `auth`, `users`, `projects`, `repositories`, `bounties`, `admin`, `webhooks`. Bounty routes are listed in [`backend/README.md`](backend/README.md).
 
-| Grupo | Prefixo | O que faz |
-|---|---|---|
-| Auth | `/auth` | Login e cadastro por e-mail, OAuth do GitHub, `/auth/me` |
-| Users | `/users` | Perfil, vínculo da carteira Solana, perfis públicos |
-| Projects | `/projects` | CRUD de projetos |
-| Repositories | `/projects/{id}/repositories`, `/repositories` | Vincular repositórios e listar issues do GitHub |
-| Bounties | `/bounties` | Criar, candidatar, aceitar, enviar PR, concluir e cancelar |
-| Admin | `/admin` | Estatísticas, projetos, sincronização de repositórios, issues sem recompensa, revisão de PR |
-| Webhooks | `/webhooks/github` | Recebe PR mergeado e eventos de issues |
+**GitHub webhook.** To complete bounties on merge, point a repository webhook at `POST /api/v1/webhooks/github` with content type `application/json` and the **Pull requests** and **Issues** events. Use the same secret in GitHub and in `GITHUB_WEBHOOK_SECRET`.
 
-A tabela completa de rotas de bounties está em [`backend/README.md`](backend/README.md).
-
-### Webhook do GitHub
-
-Para concluir bounties automaticamente no merge, aponte um webhook do repositório para `POST /api/v1/webhooks/github`, com `Content-Type: application/json` e os eventos **Pull requests** e **Issues**. Defina o mesmo segredo em `GITHUB_WEBHOOK_SECRET` no GitHub e no `.env`.
-
----
-
-## 📁 Estrutura do repositório
+## Repository layout
 
 ```
 greenfield/
-├── backend/             # FastAPI + SQLAlchemy (async) + Alembic
-│   ├── app/api/v1/      #   rotas
-│   ├── app/services/    #   regras de negócio (bounties, GitHub, Solana)
-│   ├── alembic/         #   migrations
-│   └── tests/           #   pytest
-├── frontend/            # React + Vite + TS + Tailwind
-│   └── src/
-│       ├── core/            #   domínio e casos de uso
-│       ├── infrastructure/  #   repositórios, serviços e Solana
-│       └── presentation/    #   páginas, componentes e contexto
-├── contract/            # Programa Anchor (scaffold)
-├── demo-video/          # Vídeo de demonstração (Remotion)
+├── backend/             # FastAPI app, Alembic migrations, pytest
+├── frontend/            # React app (core / infrastructure / presentation)
+├── contract/            # Anchor program (scaffold)
+├── demo-video/          # Demo video (Remotion)
 ├── docker-compose.yml   # Postgres + backend + frontend
 └── FRONTEND-REQUIREMENTS.md
 ```
 
----
+## Troubleshooting
 
-## 🩺 Troubleshooting
+- **Port 5432 or 8080 already in use:** stop the local service or the other container. Find the process with `sudo lsof -i :5432` or `lsof -i :8080`.
+- **Backend cannot reach the database:** Postgres may still be starting. Check `docker compose ps` and `docker compose logs postgres`, then rerun `uv run alembic upgrade head`.
+- **Migrations say "up to date" but tables are missing:** `DATABASE_URL` points to another database.
+- **Frontend shows `Failed to fetch` or a CORS error:** check `VITE_API_URL` and that `curl localhost:8080/api/v1/health` works.
+- **`VITE_*` change has no effect:** restart `npm run dev`. In Docker, rebuild with `--build`.
+- **`/auth/github/login` fails:** the GitHub OAuth variables are empty. Use email and password in development.
+- **`tx_signature` starts with `sim_`:** the payout was simulated. See [Payouts today](#payouts-today).
+- **Bounty completed with no `tx_signature`:** the contributor has no wallet linked (`PATCH /users/me`).
+- **Webhook returns `403 Invalid signature`:** the secret in GitHub differs from `GITHUB_WEBHOOK_SECRET`.
 
-| Sintoma | Causa provável e correção |
-|---|---|
-| `port 5432 already in use` | Há um Postgres local rodando. Pare o serviço local ou veja quem usa a porta: `sudo lsof -i :5432` |
-| `port 8080 already in use` | Outro Uvicorn ou o backend do Docker. `docker compose stop backend` ou `lsof -i :8080` |
-| `connection refused` do backend ao banco | O Postgres ainda está subindo. Veja `docker compose ps` e `docker compose logs postgres`, depois rode `uv run alembic upgrade head` de novo |
-| `alembic` diz "up to date", mas faltam tabelas | `DATABASE_URL` aponta para outro banco. Confira o `backend/.env` |
-| Frontend com `Failed to fetch` ou erro de CORS | `VITE_API_URL` errado ou backend fora do ar. Teste `curl localhost:8080/api/v1/health`. Se mudou o `.env`, reinicie o `npm run dev` |
-| Mudou `VITE_*` e nada aconteceu | O Vite só lê o env no boot. No Docker, é preciso `--build` |
-| Frontend do Docker mostra versão antiga | Cache de build: `docker compose up -d --build frontend` |
-| `/auth/github/login` retorna erro | `GITHUB_CLIENT_ID` e `GITHUB_CLIENT_SECRET` vazios. É esperado em dev: use e-mail e senha |
-| Bounty concluída com `tx_signature` começando em `sim_` | O pagamento foi simulado. Veja [Como o pagamento é feito hoje](#como-o-pagamento-é-feito-hoje) |
-| Bounty concluída sem `tx_signature` | O contribuidor não tem carteira vinculada em `PATCH /users/me` |
-| Webhook responde `403 Invalid signature` | O `GITHUB_WEBHOOK_SECRET` do `.env` é diferente do segredo configurado no GitHub |
-
-### Reset total do ambiente local
+Full local reset:
 
 ```bash
 docker compose down -v
