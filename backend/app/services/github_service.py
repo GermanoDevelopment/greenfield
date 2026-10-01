@@ -20,8 +20,9 @@ def _auth_headers(access_token: str | None = None) -> dict[str, str]:
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    if access_token:
-        headers["Authorization"] = f"Bearer {access_token}"
+    token = access_token or get_settings().github_token
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     return headers
 
 
@@ -186,3 +187,30 @@ async def fetch_issue_details(
         "author_username": item.get("user", {}).get("login"),
         "labels": labels,
     }
+
+
+async def fetch_repository_details(
+    owner: str, repo: str, access_token: str | None = None
+) -> dict[str, Any] | None:
+    """Fetch live metadata of a GitHub repository from the REST API."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}",
+            headers=_auth_headers(access_token),
+        )
+    if resp.status_code != 200:
+        return None
+
+    data = resp.json()
+    return {
+        "owner": data.get("owner", {}).get("login", owner),
+        "name": data.get("name", repo),
+        "full_name": data.get("full_name", f"{owner}/{repo}"),
+        "github_repo_id": data.get("id"),
+        "description": data.get("description"),
+        "default_branch": data.get("default_branch", "main"),
+        "open_issues_count": data.get("open_issues_count", 0),
+        "stargazers_count": data.get("stargazers_count", 0),
+        "html_url": data.get("html_url", f"https://github.com/{owner}/{repo}"),
+    }
+

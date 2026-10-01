@@ -1,6 +1,5 @@
 import type { IBountyRepository } from '../../core/domain/ports';
 import type { Bounty, Proposal } from '../../core/domain/types';
-import { INITIAL_BOUNTIES, MOCK_ISSUES, MOCK_REPOSITORIES, MOCK_USERS } from '../data/mockData';
 
 const STORAGE_KEY = 'greenfield_bounties_v1';
 
@@ -9,12 +8,12 @@ export class LocalStorageBountyRepository implements IBountyRepository {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        this.saveStore(INITIAL_BOUNTIES);
-        return INITIAL_BOUNTIES;
+        this.saveStore([]);
+        return [];
       }
       return JSON.parse(raw);
     } catch {
-      return INITIAL_BOUNTIES;
+      return [];
     }
   }
 
@@ -42,20 +41,6 @@ export class LocalStorageBountyRepository implements IBountyRepository {
       ...bountyData,
       id: newId,
       created_at: new Date().toISOString(),
-      issue:
-        bountyData.issue ||
-        MOCK_ISSUES.find((i) => i.id === bountyData.issue_id),
-      repository:
-        bountyData.repository ||
-        MOCK_REPOSITORIES.find((r) => r.id === bountyData.repository_id),
-      maintainer:
-        bountyData.maintainer ||
-        (bountyData.maintainer_id === 'user-maintainer'
-          ? MOCK_USERS.maintainer
-          : undefined),
-      developer:
-        bountyData.developer ||
-        Object.values(MOCK_USERS).find((u) => u.id === bountyData.developer_id),
     };
 
     list.unshift(newBounty);
@@ -151,6 +136,6 @@ export class LocalStorageBountyRepository implements IBountyRepository {
   }
 
   reset(): void {
-    this.saveStore(INITIAL_BOUNTIES);
+    this.saveStore([]);
   }
 }

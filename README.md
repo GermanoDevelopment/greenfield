@@ -1,335 +1,192 @@
 # 🌱 Greenfield
 
-> Transforme contribuições open source em recompensas financeiras instantâneas em USDC na Solana.
+> Turn open source contributions into USDC rewards on Solana.
 
-**Repositório Oficial:** [github.com/GermanoDevelopment/greenfield](https://github.com/GermanoDevelopment/greenfield)  
-**Fluxo do Protocolo:** `Issue → Candidatura → Aprovação → PR → Merge → Claim (USDC)`
+Greenfield links **GitHub issues** to **bounties**. Maintainers price an issue, contributors apply and open a PR, and a **confirmed merge** pays USDC to the contributor's wallet.
 
----
-
-## 📌 Sumário
-
-- [Visão Geral](#-visão-geral)
-- [Proposta de Valor](#-proposta-de-valor)
-- [Invariantes do Protocolo](#-invariantes-do-protocolo)
-- [Arquitetura do Sistema](#-arquitetura-do-sistema)
-- [Estrutura do Repositório](#-estrutura-do-repositório)
-- [Como Executar](#-como-executar)
-  - [Opção 1: Ambiente Completo via Docker Compose (Recomendado)](#opção-1-ambiente-completo-via-docker-compose-recomendado)
-  - [Opção 2: Execução Local por Módulo](#opção-2-execução-local-por-módulo)
-- [Configuração de Variáveis de Ambiente](#-configuração-de-variáveis-de-ambiente)
-- [Endpoints da API (Backend REST)](#-endpoints-da-api-backend-rest)
-- [Smart Contract (Solana Anchor)](#-smart-contract-solana-anchor)
-- [Qualidade e Testes](#-qualidade-e-testes)
-
----
-
-## 📖 Visão Geral
-
-O **Greenfield** resolve a falta de incentivo financeiro para resolução de issues em projetos de código aberto conectando o fluxo nativo do GitHub a liquidações financeiras on-chain na blockchain Solana (em USDC SPL Token).
-
-A plataforma elimina burocracias de programas convencionais de grants e bounties: todo o ciclo de vida — da triagem da issue à verificação do merge e liberação dos fundos — ocorre com rastreabilidade integrada entre GitHub APIs/Webhooks e o Smart Contract de custódia (Tesouro Comunitário).
-
----
-
-## 🎯 Proposta de Valor
-
-### Para Mantenedores
-- Autenticação via GitHub OAuth e vinculação de carteira Solana (Phantom / Solflare).
-- Seleção direta de repositórios e issues abertas.
-- Definição de recompensas em pontos equivalentes a USDC.
-- Avaliação de propostas técnicas e atribuição a desenvolvedores com congelamento de valor.
-- Liberação automática ou assistida dos fundos condicionada estritamente ao **merge do PR** no branch principal.
-
-### Para Desenvolvedores
-- Descoberta de issues abertas com recompensas financeiras garantidas.
-- Envio de candidatura com plano de implementação.
-- Desenvolvimento padrão no GitHub (Issue → Branch → Pull Request).
-- Liquidação on-chain via assinatura de transação de `Claim` diretamente para sua carteira Solana após a aprovação do merge.
-
----
-
-## 🛡️ Invariantes do Protocolo
-
-O Greenfield opera sob quatro invariantes obrigatórias de integridade e solvência:
-
-1. **Merge Obrigatório**: A recompensa é liberada exclusivamente após a confirmação de merge do Pull Request correspondente no branch padrão do repositório.
-2. **Imutabilidade da Recompensa**: Uma vez que uma candidatura é aceita e o desenvolvedor é atribuído à bounty (`ASSIGNED`), o valor da recompensa é congelado e não pode ser reduzido.
-3. **Prevenção contra Double-Claim**: O ciclo de vida da bounty possui estado terminal `CLAIMED` registrado on-chain e sincronizado no banco relacional, impedindo duplicação de pagamentos.
-4. **Solvência do Tesouro e Conversão Canônica**: Toda bounty aberta exige reserva prévia do saldo disponível no Tesouro Comunitário. A paridade fixa do protocolo é:
-   $$\text{100 pontos} = \$1.00\text{ USDC} = 1.000.000\text{ micro-USDC (6 decimais)}$$
-
----
-
-## 🏛️ Arquitetura do Sistema
-
-```
-                      ┌─────────────────────────────────────────┐
-                      │             GitHub Platform             │
-                      │  (OAuth / Issues / PRs / Webhooks)      │
-                      └───────────────┬─────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────┐   REST / Webhooks   ┌─────────────────────────┐
-│     Frontend (SPA)      │ ──────────────────► │      Backend (API)      │
-│  React 19 + Vite + TS   │                     │  FastAPI + SQLAlchemy   │
-│  Tailwind + Solana Kit  │                     │  PostgreSQL 15 (Async)  │
-└────────────┬────────────┘                     └────────────┬────────────┘
-             │                                               │
-             │ Assinatura do Claim                           │ Autorização (CPI) / Payout
-             ▼                                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     Solana Network (Devnet / Mainnet)                   │
-│                     Anchor Smart Contract (Greenfield)                  │
-│               Vault USDC / Tesouro Comunitário / Contas PDA             │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A[GitHub issue] --> B[Bounty<br/>100 points = $1]
+    B --> C[Contributor applies]
+    C --> D[Maintainer accepts<br/>reward frozen]
+    D --> E[PR submitted]
+    E --> F{PR merged?}
+    F -- "yes" --> G[USDC paid<br/>on Solana]
+    F -- "no" --> E
 ```
 
-### Componentes Técnicos
+Repository: [github.com/GermanoDevelopment/greenfield](https://github.com/GermanoDevelopment/greenfield)
 
-- **Frontend (`/frontend`)**: Interface Single Page Application construída com React 19 (`react@^19.2`), TypeScript, Vite, Tailwind CSS, TanStack React Query (`^5.102`), React Router DOM v7 (`^7.18`) e ecossistema Solana Kit 8 (`@solana/kit`, `@solana/react` com `ClientProvider` e `@wallet-standard/ui`) para suporte universal a carteiras da rede Solana.
-- **Backend (`/backend`)**: API REST assíncrona desenvolvida com Python 3.12+, FastAPI, SQLAlchemy 2.0 (modo async com driver `asyncpg`), Alembic para migrações relacionais, Pydantic v2 para validação e serialização, autenticação via JWT/OAuth GitHub e integração com a rede Solana via `solinpy`, `solana` e `solders`.
-  - Suporta **modo on-chain via Anchor** (quando `SOLANA_PROGRAM_ID` e `SOLANA_AUTHORITY_SECRET_KEY` estão presentes) e **modo custodial fallback** direto via transferências SPL Token.
-- **Smart Contract (`/contract`)**: Programa Anchor em Rust na Solana responsável pela custódia do pool financeiro em cofre PDA, reserva de balanço, controle de estados e transferência segura de tokens SPL USDC aos desenvolvedores autorizados.
-- **Demo Video (`/demo-video`)**: Aplicação Remotion em React/TypeScript configurada para geração programática e renderização automatizada de vídeos demonstrativos da plataforma.
+## Stack
 
----
+- **Backend:** FastAPI, SQLAlchemy 2 (async), asyncpg, Alembic. Port `8080`.
+- **Frontend:** React 19, Vite, TypeScript, Tailwind, `@solana/kit`. Port `5173` (dev) or `3000` (Docker, Nginx).
+- **Database:** Postgres 15. Port `5432`.
+- **Contract:** Anchor (Rust) escrow program: treasury, per-bounty escrow and contributor claim.
 
-## 📂 Estrutura do Repositório
+## Quickstart
 
-```text
-greenfield/
-├── backend/                  # API FastAPI, modelos SQLAlchemy, migrações Alembic e testes
-│   ├── alembic/              # Scripts de migração de banco de dados
-│   ├── app/                  # Núcleo da aplicação (api, core, db, models, schemas, services)
-│   ├── tests/                # Testes automatizados unitários e de integração (pytest)
-│   ├── Dockerfile            # Imagem de produção do backend
-│   └── pyproject.toml        # Dependências gerenciadas via uv
-├── frontend/                 # Aplicação Web React 19 + Vite + TypeScript
-│   ├── src/                  # Código-fonte (componentes, páginas, contextos e infraestrutura)
-│   ├── nginx.conf            # Configuração de proxy reverso Nginx para produção
-│   ├── Dockerfile            # Imagem multi-stage do frontend com Nginx
-│   └── package.json          # Dependências e scripts npm
-├── contract/                 # Smart Contract Solana desenvolvido com Anchor Framework
-│   ├── programs/greenfield/  # Código-fonte do programa Solana em Rust
-│   ├── tests/                # Suíte de testes de integração Anchor/TypeScript
-│   └── Anchor.toml           # Configuração de rede, programas e provedores Anchor
-├── demo-video/               # Composição de vídeo automatizada com Remotion
-├── docker-compose.yml        # Orquestração local dos serviços (Postgres, Backend, Frontend)
-└── README.md                 # Documentação central do projeto
-```
+Requirements: Docker with Compose. For local development also Python 3.12+, [uv](https://docs.astral.sh/uv/) and Node.js 20+.
 
----
+### Option A: everything in Docker
 
-## 🚀 Como Executar
-
-### Pré-requisitos Gerais
-- [Docker](https://docs.docker.com/get-docker/) e Docker Compose
-- [Python 3.12+](https://www.python.org/) e gerenciador de pacotes [uv](https://docs.astral.sh/uv/)
-- [Node.js 20+](https://nodejs.org/) e npm
-- [Rust](https://www.rust-lang.org/), [Solana CLI](https://docs.solanalabs.com/cli/install) e [Anchor CLI](https://www.anchor-lang.com/docs/installation) (necessários para compilar o smart contract)
-
----
-
-### Opção 1: Ambiente Completo via Docker Compose (Recomendado)
-
-Esta opção inicializa toda a infraestrutura com um único comando: banco PostgreSQL, migrações automáticas de schema, backend FastAPI e frontend com proxy reverso Nginx.
-
-1. **Clone o repositório:**
-   ```bash
-   git clone https://github.com/GermanoDevelopment/greenfield.git
-   cd greenfield
-   ```
-
-2. **Configure as variáveis de ambiente:**
-   ```bash
-   cp backend/.env.example backend/.env
-   cp frontend/.env.example frontend/.env
-   ```
-
-3. **Inicie os contêineres:**
-   ```bash
-   docker compose up -d --build
-   ```
-
-4. **Acesse as interfaces:**
-   - **Frontend Web:** [http://localhost:3000](http://localhost:3000)
-   - **Swagger UI (Documentação Interativa):** [http://localhost:8080/docs](http://localhost:8080/docs)
-   - **ReDoc:** [http://localhost:8080/redoc](http://localhost:8080/redoc)
-   - **Healthcheck:** [http://localhost:8080/api/v1/health](http://localhost:8080/api/v1/health)
-
-Para parar os serviços:
 ```bash
-docker compose down
+docker compose up -d --build
+curl http://localhost:8080/api/v1/health
 ```
 
----
+Open http://localhost:3000 (app) and http://localhost:8080/docs (Swagger). Migrations run on startup.
 
-### Opção 2: Execução Local por Módulo
-
-Caso prefira executar os serviços individualmente em modo de desenvolvimento com hot-reload:
-
-#### 1. Banco de Dados (PostgreSQL via Docker)
 ```bash
+docker compose logs -f backend frontend
+docker compose down       # stop, keep data
+docker compose down -v    # stop and wipe the local database
+```
+
+The Docker frontend is a static build: `VITE_API_URL` is baked in at build time and `frontend/.env` is ignored. It defaults to `http://localhost:8080/api/v1`. After frontend changes, run `docker compose up -d --build frontend`.
+
+### Option B: local development (recommended)
+
+Postgres in Docker, backend and frontend on your machine with hot reload.
+
+```bash
+# 1. Database
 docker compose up -d postgres
-```
 
-#### 2. Backend (FastAPI + uv)
-```bash
+# 2. Backend (terminal 1)
 cd backend
 cp .env.example .env
-# Configure as credenciais no .env se necessário
-
 uv sync
-uv pip install solinpy --no-deps
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --port 8080
-```
 
-#### 3. Frontend (React + Vite)
-```bash
+# 3. Frontend (terminal 2)
 cd frontend
 cp .env.example .env
 npm install
 npm run dev
 ```
-O frontend local estará acessível em [http://localhost:5173](http://localhost:5173).
 
-#### 4. Smart Contract (Solana Anchor)
+Open http://localhost:5173. The default `DATABASE_URL` in `.env.example` works as is; the backend converts it to `postgresql+asyncpg://`.
+
+### First login
+
+- **Email and password:** sign up in the app's login modal, or `POST /api/v1/auth/register`.
+- **Seeded dev admins:** created on every backend boot with the password `admin123` (see `backend/app/services/admin_seed.py`).
+- **GitHub OAuth:** needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
+
+> ⚠️ The seeded admins are for development only. Remove them or change the passwords, and set your own `JWT_SECRET`, before any shared deployment.
+
+## Configuration
+
+The `.env.example` files work out of the box.
+
+**Backend** (`backend/.env`):
+
+- `DATABASE_URL`: Postgres connection string. Docker Compose overrides the host to `postgres`.
+- `JWT_SECRET`: **change in production**. `JWT_EXPIRATION_MINUTES` defaults to `1440`.
+- `CORS_ORIGINS`: allowed frontend origins. Defaults to ports `5173` and `3000`.
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`: GitHub OAuth.
+- `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **If empty, any payload is accepted.**
+- `GITHUB_TOKEN`: token for GitHub API calls when the user has none.
+- `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login.
+- `SOLANA_RPC_URL`: defaults to devnet.
+- `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY`: set both to enable on-chain escrow (see [Payouts](#payouts)).
+- `SOLANA_TREASURY_KEYPAIR_PATH` or `SOLANA_TREASURY_PRIVATE_KEY` (base58): treasury key for the custodial fallback.
+- `USDC_MINT_DEVNET`: USDC mint used for payouts.
+
+**Frontend** (`frontend/.env`). Vite reads these at boot, so restart `npm run dev` after changes:
+
+- `VITE_API_URL`: defaults to `http://localhost:8080/api/v1`.
+- `VITE_SOLANA_RPC_URL` and `VITE_SOLANA_CHAIN`: default to devnet.
+- `VITE_SOLANA_PROGRAM_ID` and `VITE_SOLANA_USDC_MINT`: used to build the contributor's claim transaction. Not in `.env.example` yet.
+
+## How it works
+
+A bounty moves `OPEN → ASSIGNED → SUBMITTED → COMPLETED`. It can be `CANCELLED` from any non-final state, and a rejected PR sends it back from `SUBMITTED` to `ASSIGNED`. `COMPLETED` and `CANCELLED` are final.
+
+It completes when the GitHub webhook reports a merged PR, or when the issuer or an admin calls `POST /bounties/{id}/complete`. Either way the backend verifies the merge first.
+
+Rules:
+
+- **Merge required.** If the backend cannot verify the merge, the bounty does not complete.
+- **Frozen reward.** The reward can only change while `OPEN`.
+- **One payout per issue.** `complete` is only valid from `SUBMITTED`.
+- **Fixed conversion.** `100 points = $1 USDC = 1,000,000 micro-USDC`.
+
+### Payouts
+
+The mode depends on configuration.
+
+**On-chain escrow.** Active when both `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY` are set. The Anchor program holds the funds, and the backend runs each step as the bounty advances: create, assign (when the accepted contributor has a wallet), approve on merge, cancel. The contributor then signs `claim` from their wallet in the app. If an on-chain step fails, the database change is rolled back and the API returns an error.
+
+**Custodial fallback.** The default when either variable is missing. On merge the backend sends SPL USDC from a treasury key straight to the contributor's wallet. The key comes from `SOLANA_AUTHORITY_SECRET_KEY`, else `SOLANA_TREASURY_KEYPAIR_PATH`, else `SOLANA_TREASURY_PRIVATE_KEY`; with none of them, the backend uses an ephemeral keypair with no funds. If the contributor has no linked wallet, or the transfer fails, the bounty still completes with no `tx_signature` and no error is reported.
+
+## Commands
+
 ```bash
-cd contract
+# backend/
+uv run uvicorn app.main:app --reload --port 8080
+uv run alembic upgrade head
+uv run alembic revision --autogenerate -m "message"
+uv run pytest                    # in-memory SQLite, no Postgres needed
+uv run ruff check .
+uv run ruff format --check .
+
+# frontend/
+npm run dev
+npm run build                    # tsc + build to dist/
+npm run preview
+npm run lint                     # oxlint
+
+# contract/ (optional)
 npm install
 anchor build
-anchor test
+npm test
 ```
 
-#### 5. Vídeo Demonstrativo (Remotion)
+The contract wallet is `~/.config/solana/id.json`. For devnet: `solana config set --url devnet && solana airdrop 2`. Known inconsistency: `declare_id!` in `lib.rs` is `DFebMWgv4WEJgzodxnQwvXavUeFKXT3mPPMXtMrWyoRv`, but `Anchor.toml` still lists the placeholder `Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS`.
+
+## API
+
+Everything lives under `/api/v1`:
+
+- Swagger: http://localhost:8080/docs
+- ReDoc: http://localhost:8080/redoc
+- OpenAPI JSON: http://localhost:8080/openapi.json
+- Health: http://localhost:8080/api/v1/health
+
+Route groups: `auth`, `users`, `projects`, `repositories`, `bounties`, `admin`, `webhooks`. Bounty routes are listed in [`backend/README.md`](backend/README.md).
+
+**GitHub webhook.** To complete bounties on merge, point a repository webhook at `POST /api/v1/webhooks/github` with content type `application/json` and the **Pull requests** and **Issues** events. Use the same secret in GitHub and in `GITHUB_WEBHOOK_SECRET`.
+
+## Repository layout
+
+```
+greenfield/
+├── backend/             # FastAPI app, Alembic migrations, pytest
+├── frontend/            # React app (core / infrastructure / presentation)
+├── contract/            # Anchor escrow program and integration tests
+├── docker-compose.yml   # Postgres + backend + frontend
+└── FRONTEND-REQUIREMENTS.md
+```
+
+## Troubleshooting
+
+- **Port 5432 or 8080 already in use:** stop the local service or the other container. Find the process with `sudo lsof -i :5432` or `lsof -i :8080`.
+- **Backend cannot reach the database:** Postgres may still be starting. Check `docker compose ps` and `docker compose logs postgres`, then rerun `uv run alembic upgrade head`.
+- **Migrations say "up to date" but tables are missing:** `DATABASE_URL` points to another database.
+- **Frontend shows `Failed to fetch` or a CORS error:** check `VITE_API_URL` and that `curl localhost:8080/api/v1/health` works.
+- **`VITE_*` change has no effect:** restart `npm run dev`. In Docker, rebuild with `--build`.
+- **`/auth/github/login` fails:** the GitHub OAuth variables are empty. Use email and password in development.
+- **Bounty completed with no `tx_signature` (custodial mode):** the contributor has no wallet linked (`PATCH /users/me`), or the transfer failed silently. See [Payouts](#payouts).
+- **`On-chain transaction failed` (escrow mode):** the Solana step was rejected, so the change was rolled back. Check `SOLANA_PROGRAM_ID`, the authority key balance and `SOLANA_RPC_URL`.
+- **Webhook returns `403 Invalid signature`:** the secret in GitHub differs from `GITHUB_WEBHOOK_SECRET`.
+
+Full local reset:
+
 ```bash
-cd demo-video
-npm install
-npm run dev               # Abre a interface de visualização do Remotion
-npx remotion render       # Renderiza o vídeo em arquivo final
+docker compose down -v
+docker compose up -d postgres
+cd backend && uv run alembic upgrade head
 ```
-
----
-
-## ⚙️ Configuração de Variáveis de Ambiente
-
-### Backend (`backend/.env`)
-
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `PORT` | `8080` | Porta HTTP do serviço FastAPI |
-| `DATABASE_URL` | `postgresql+asyncpg://greenfield:greenfield@localhost:5432/greenfield` | URL de conexão assíncrona ao PostgreSQL |
-| `JWT_SECRET` | `supersecretjwtkey_change_in_production` | Chave simétrica para assinatura de tokens JWT |
-| `JWT_EXPIRATION_MINUTES` | `1440` (24 horas) | Tempo de expiração do token de sessão |
-| `GITHUB_CLIENT_ID` | `""` | Client ID da GitHub OAuth App |
-| `GITHUB_CLIENT_SECRET` | `""` | Client Secret da GitHub OAuth App |
-| `GITHUB_REDIRECT_URI` | `http://localhost:8080/api/v1/auth/github/callback` | Callback de autorização registrado no GitHub |
-| `GITHUB_WEBHOOK_SECRET` | `""` | Secret de validação de assinatura HMAC dos webhooks do GitHub |
-| `SOLANA_RPC_URL` | `https://api.devnet.solana.com` | Endpoint RPC da rede Solana |
-| `SOLANA_PROGRAM_ID` | `""` | Public Key do programa Greenfield na Solana |
-| `SOLANA_AUTHORITY_SECRET_KEY`| `""` | Chave privada da autoridade backend (habilita modo on-chain Anchor) |
-| `CORS_ORIGINS` | `["http://localhost:5173","http://localhost:3000"]` | Origens autorizadas para requisições CORS |
-| `ADMIN_GITHUB_USERNAMES` | `["GermanoDevelopment"]` | Lista de usuários GitHub com privilégios administrativos |
-
-### Frontend (`frontend/.env`)
-
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `VITE_API_URL` | `http://localhost:8080/api/v1` | Endpoint base da API REST do Greenfield |
-| `VITE_SOLANA_RPC_URL` | `https://api.devnet.solana.com` | Endpoint RPC utilizado pelas carteiras e listeners Web3 |
-| `VITE_SOLANA_CHAIN` | `solana:devnet` | Identificador de cluster da rede Solana |
-
----
-
-## 📡 Endpoints da API (Backend REST)
-
-Todas as rotas estão sob o prefixo `/api/v1`:
-
-| Categoria | Método | Rota | Descrição |
-|---|---|---|---|
-| **Health** | `GET` | `/health` | Status de integridade e versão da API |
-| **Auth** | `GET` | `/auth/github/login` | Inicia fluxo de redirecionamento para o GitHub OAuth |
-| | `GET` | `/auth/github/callback` | Processa o código do GitHub e emite o token de acesso JWT |
-| | `GET` | `/auth/me` | Retorna os dados do usuário atualmente autenticado |
-| **Users** | `GET` | `/users/me` | Retorna o perfil completo do usuário autenticado |
-| | `PATCH` | `/users/me` | Atualiza dados cadastrais e vincula carteira Solana |
-| | `GET` | `/users` | Listagem pública de usuários cadastrados |
-| | `GET` | `/users/{id}` | Perfil público detalhado de um usuário |
-| **Projects** | `POST` | `/projects` | Registra novo projeto/organização |
-| | `GET` | `/projects` | Lista projetos ativos |
-| | `GET` | `/projects/{id}` | Recupera detalhes de um projeto específico |
-| | `PATCH` | `/projects/{id}` | Atualiza configurações de um projeto |
-| | `DELETE` | `/projects/{id}` | Remove um projeto |
-| **Repositories** | `POST` | `/projects/{id}/repositories` | Vincula repositório do GitHub a um projeto |
-| | `GET` | `/projects/{id}/repositories` | Lista repositórios monitorados do projeto |
-| | `GET` | `/repositories/{id}` | Detalhes de um repositório |
-| | `DELETE` | `/repositories/{id}` | Desvincula repositório |
-| | `GET` | `/repositories/{id}/issues` | Lista issues do GitHub disponíveis para criação de bounty |
-| **Bounties** | `POST` | `/bounties` | Cria uma nova task monetizada associada a uma issue |
-| | `GET` | `/bounties` | Lista bounties com filtros por status, projeto e hunter |
-| | `GET` | `/bounties/{id}` | Detalhes completos da bounty e histórico |
-| | `PATCH` | `/bounties/{id}/reward` | Atualiza a pontuação/recompensa da bounty (somente se `OPEN`) |
-| | `POST` | `/bounties/{id}/apply` | Submete candidatura de desenvolvedor com proposta técnica |
-| | `GET` | `/bounties/{id}/applicants` | Lista candidatos que aplicaram para a issue |
-| | `POST` | `/bounties/{id}/applicants/{applicant_id}/accept` | Aprova candidato e congela a recompensa (`ASSIGNED`) |
-| | `POST` | `/bounties/{id}/assign` | Auto-atribuição direta (legado) |
-| | `POST` | `/bounties/{id}/submit` | Submete o Pull Request de solução (`SUBMITTED`) |
-| | `POST` | `/bounties/{id}/complete` | Conclui a bounty e dispara liquidação on-chain |
-| | `POST` | `/bounties/{id}/reject-submission` | Recusa a solução e reverte status para `ASSIGNED` |
-| | `POST` | `/bounties/{id}/claimed` | Registra confirmação de claim assinado on-chain pelo desenvolvedor |
-| | `POST` | `/bounties/{id}/cancel` | Cancela uma bounty aberta e devolve a reserva ao Tesouro |
-| **Admin** | `GET` | `/admin/stats` | Estatísticas globais do ecossistema e capital alocado |
-| | `POST` | `/admin/repositories` | Cadastro de repositório com privilégio de administrador |
-| | `POST` | `/admin/bounties/{bounty_id}/review` | Moderação de submissão (Aprovação com payout ou Rejeição) |
-| **Webhooks** | `POST` | `/webhooks/github` | Recebe eventos do GitHub (`pull_request.closed` com merge) para liquidação automática |
-
----
-
-## ⚡ Smart Contract (Solana Anchor)
-
-O smart contract gerencia o cofre de tokens SPL USDC e os estados das recompensas on-chain:
-
-- **Program ID:** `DFebMWgv4WEJgzodxnQwvXavUeFKXT3mPPMXtMrWyoRv`
-- **Instruções Principais:**
-  - `initialize_treasury`: Cria o Tesouro Comunitário para o mint de USDC e configura a conta de autoridade do backend.
-  - `fund_treasury`: Deposita tokens USDC no cofre PDA do Tesouro, expandindo o saldo total disponível para financiamento.
-  - `create_bounty`: Reserva o montante em USDC do saldo do Tesouro e associa um identificador único de bounty.
-  - `assign_developer`: Registra a chave pública da carteira do desenvolvedor selecionado para a resolução da issue.
-  - `approve_claim`: Autoriza a liberação dos fundos após a verificação de merge do Pull Request pelo backend.
-  - `claim`: Executada e assinada pelo desenvolvedor para transferir o USDC reservado do cofre PDA diretamente para seu token account associado.
-  - `cancel_bounty`: Cancela uma bounty não reivindicada e devolve o montante reservado para o saldo disponível do Tesouro.
-
----
-
-## 🧪 Qualidade e Testes
-
-### Backend
-Para executar a verificação estática de código, formatação e a suíte completa de testes:
-```bash
-cd backend
-uv run ruff check .               # Análise estática de código (Linter)
-uv run ruff format --check .      # Validação de formatação de código
-uv run pytest                     # Execução de testes unitários e de integração
-```
-
-### Frontend
-Para verificar a integridade da tipagem TypeScript e a geração do pacote de produção:
-```bash
-cd frontend
-npm run build                     # Validação de tipos TypeScript e build de produção
-```
-
-### Smart Contract
-Para rodar a suíte de testes de integração on-chain no ambiente local:
-```bash
-cd contract
-anchor test
-```
-
----
-
-## 📄 Licença
-
-Este projeto é desenvolvido para o ecossistema open source sob licença MIT. Consulte os arquivos individuais de cada módulo para termos específicos de dependências.

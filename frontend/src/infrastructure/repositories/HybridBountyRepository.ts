@@ -27,7 +27,7 @@ export class HybridBountyRepository implements IBountyRepository {
     if (this.isOnline) {
       try {
         const remote = await this.httpRepo.getAll();
-        if (remote.length > 0) return remote;
+        return remote;
       } catch {
         this.isOnline = false;
       }

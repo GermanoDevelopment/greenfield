@@ -22,149 +22,6 @@ import {
 // Cada issue rastreada corresponde a uma pontuação fixa, sem valor monetário associado
 const ISSUE_POINTS = 120;
 
-// Função mock para issues caso offline ou API sem issues
-function getMockIssues(): ApiGitHubIssueOut[] {
-  return [
-    {
-      number: 42,
-      title: 'Implementar validação off-chain de assinaturas Ed25519 em Solinpy',
-      body: 'Precisamos criar uma rotina em Python que faça a verificação de assinatura Ed25519 compatível com Solana antes de enviar a transação ao cluster Devnet.',
-      html_url: 'https://github.com/carcaras/solinpy/issues/42',
-      state: 'open',
-      author_username: 'solana-maintainer',
-      labels: ['bounty', 'solana', 'python', 'security'],
-      has_bounty: true,
-      bounty_id: 1,
-      bounty_status: 'OPEN',
-      bounty_points: ISSUE_POINTS,
-    },
-    {
-      number: 45,
-      title: 'Adicionar suporte a simulação de transações v1 (SIMD-0385) no SDK',
-      body: 'O formato de transação v1 suporta até 4096 bytes. Precisamos de testes unitários para a serialização e envio ao RPC Devnet.',
-      html_url: 'https://github.com/carcaras/solinpy/issues/45',
-      state: 'open',
-      author_username: 'solana-maintainer',
-      labels: ['bounty', 'v1-tx', 'devnet'],
-      has_bounty: true,
-      bounty_id: 2,
-      bounty_status: 'ASSIGNED',
-      bounty_points: ISSUE_POINTS,
-    },
-    {
-      number: 51,
-      title: 'Otimizar cálculo de Compute Units (CU) no CPI de Transferência SPL-Token',
-      body: 'Reduzir o consumo de compute units adicionando pre-compute unit price instructions e limites de heap dinâmicos.',
-      html_url: 'https://github.com/carcaras/solinpy/issues/51',
-      state: 'open',
-      author_username: 'solana-maintainer',
-      labels: ['enhancement', 'compute-units', 'solana'],
-      has_bounty: true,
-      bounty_id: 3,
-      bounty_status: 'SUBMITTED',
-      bounty_points: ISSUE_POINTS,
-    },
-    {
-      number: 54,
-      title: 'Criar documentação de integração do Greenfield com Solana Wallet Adapter',
-      body: 'Escrever guia com exemplos de código em TypeScript usando @solana/kit e @solana/react.',
-      html_url: 'https://github.com/GermanoDevelopment/greenfield/issues/54',
-      state: 'open',
-      author_username: 'greenfield-admin',
-      labels: ['documentation', 'good-first-issue'],
-      has_bounty: true,
-      bounty_id: 4,
-      bounty_status: 'COMPLETED',
-      bounty_points: ISSUE_POINTS,
-    },
-  ];
-}
-
-function getMockBounties(): ApiBountyOut[] {
-  return [
-    {
-      id: 1,
-      project_id: 1,
-      repository_id: 1,
-      issuer_id: 1,
-      hunter_id: null,
-      issue_url: 'https://github.com/carcaras/solinpy/issues/42',
-      issue_number: 42,
-      issue_title: 'Implementar validação off-chain de assinaturas Ed25519 em Solinpy',
-      issue_body: 'Precisamos criar uma rotina em Python que faça a verificação...',
-      amount_usdc: ISSUE_POINTS,
-      points: ISSUE_POINTS,
-      status: 'OPEN',
-      escrow_pda: 'Escrow1111111111111111111111111111111111',
-      pr_url: null,
-      tx_signature: null,
-      claimed_at: null,
-      created_at: new Date().toISOString(),
-      applicants: [],
-    },
-    {
-      id: 2,
-      project_id: 1,
-      repository_id: 1,
-      issuer_id: 1,
-      hunter_id: 2,
-      issue_url: 'https://github.com/carcaras/solinpy/issues/45',
-      issue_number: 45,
-      issue_title: 'Adicionar suporte a simulação de transações v1 (SIMD-0385) no SDK',
-      issue_body: 'O formato de transação v1...',
-      amount_usdc: ISSUE_POINTS,
-      points: ISSUE_POINTS,
-      status: 'ASSIGNED',
-      escrow_pda: 'Escrow2222222222222222222222222222222222',
-      pr_url: null,
-      tx_signature: null,
-      claimed_at: null,
-      created_at: new Date().toISOString(),
-      applicants: [],
-    },
-    {
-      id: 3,
-      project_id: 1,
-      repository_id: 1,
-      issuer_id: 1,
-      hunter_id: 2,
-      issue_url: 'https://github.com/carcaras/solinpy/issues/51',
-      issue_number: 51,
-      issue_title: 'Otimizar cálculo de Compute Units (CU) no CPI de Transferência SPL-Token',
-      issue_body: 'Reduzir consumo...',
-      amount_usdc: ISSUE_POINTS,
-      points: ISSUE_POINTS,
-      status: 'SUBMITTED',
-      escrow_pda: 'Escrow3333333333333333333333333333333333',
-      pr_url: 'https://github.com/carcaras/solinpy/pull/52',
-      tx_signature: null,
-      claimed_at: null,
-      created_at: new Date().toISOString(),
-      applicants: [],
-    },
-    {
-      id: 4,
-      project_id: 1,
-      repository_id: 1,
-      issuer_id: 1,
-      hunter_id: 2,
-      issue_url: 'https://github.com/GermanoDevelopment/greenfield/issues/54',
-      issue_number: 54,
-      issue_title: 'Criar documentação de integração do Greenfield com Solana Wallet Adapter',
-      issue_body: 'Documentação...',
-      amount_usdc: ISSUE_POINTS,
-      points: ISSUE_POINTS,
-      status: 'COMPLETED',
-      escrow_pda: 'Escrow4444444444444444444444444444444444',
-      pr_url: 'https://github.com/GermanoDevelopment/greenfield/pull/55',
-      tx_signature: '5K2bM7q4C3pW6hS2aK1g8V9rXyZ3wT6uN4jH8kL9vP2bM7q4C3pW6hS2aK1g8V9r',
-      claimed_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      applicants: [],
-    },
-  ];
-}
-
 export const RepositoryIssuesPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const { isBackendConnected } = useApp();
@@ -190,24 +47,21 @@ export const RepositoryIssuesPage: React.FC = () => {
   const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
-      if (isBackendConnected) {
-        // Tenta carregar issues da API do backend
-        try {
-          const repoIssues = await greenfieldApi.listRepositoryIssues(repoId);
-          setIssues(repoIssues);
-        } catch {
-          // Se falhar ou não houver mock do github, preencha lista funcional
-          setIssues(getMockIssues());
-        }
+      try {
+        const repoIssues = await greenfieldApi.listRepositoryIssues(repoId);
+        setIssues(repoIssues);
+      } catch (err) {
+        console.warn('Erro ao carregar issues da API:', err);
+        setIssues([]);
+      }
 
+      try {
         const allBounties = await greenfieldApi.listBounties();
         setBounties(allBounties);
-      } else {
-        setIssues(getMockIssues());
-        setBounties(getMockBounties());
+      } catch (err) {
+        console.warn('Erro ao carregar bounties da API:', err);
+        setBounties([]);
       }
-    } catch (err) {
-      console.error('Erro ao carregar issues:', err);
     } finally {
       setLoading(false);
     }

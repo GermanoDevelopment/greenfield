@@ -1,22 +1,14 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, History, Settings, RefreshCw, GitPullRequest, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { RefreshCw, GitPullRequest, ExternalLink } from 'lucide-react';
 import RoleSwitcher from '../molecules/RoleSwitcher';
 import { WalletButton } from '../../../components/WalletButton';
 import { useApp } from '../../context/AppContext';
 import { getChainDisplayLabel } from '../../../client';
 
 export const Navbar: React.FC = () => {
-  const location = useLocation();
   const { resetToDefaults, isBackendConnected } = useApp();
   const chainLabel = getChainDisplayLabel();
-
-  const navLinks = [
-    { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { label: 'Nova Bounty', path: '/bounties/new', icon: <PlusCircle className="w-4 h-4" /> },
-    { label: 'Histórico', path: '/history', icon: <History className="w-4 h-4" /> },
-    { label: 'Configurações', path: '/settings', icon: <Settings className="w-4 h-4" /> },
-  ];
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[#252E24] bg-[#101410]/95 backdrop-blur-md shadow-xs">
@@ -94,29 +86,6 @@ export const Navbar: React.FC = () => {
 
         {/* Linha Inferior: 4 Abas Principais + Link GitHub */}
         <nav className="flex items-center justify-between overflow-x-auto no-scrollbar py-2 border-t border-[#252E24]/70 -mx-4 px-4 sm:mx-0 sm:px-0">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {navLinks.map((link) => {
-              const isActive =
-                location.pathname === link.path ||
-                (link.path === '/bounties/new' && location.pathname.startsWith('/bounties/new'));
-
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap min-h-[36px] ${
-                    isActive
-                      ? 'bg-[#28B110] text-[#101410] font-bold shadow-xs shadow-[#28B110]/25'
-                      : 'text-[#9EB19D] hover:text-white hover:bg-[#182017]'
-                  }`}
-                >
-                  {link.icon}
-                  <span>{link.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-
           <a
             href="https://github.com/GermanoDevelopment/greenfield"
             target="_blank"

@@ -48,12 +48,19 @@ export interface HealthOut {
 
 export interface ApiUserOut {
   id: number;
-  github_id: number;
+  github_id: number | null;
   username: string;
+  email?: string | null;
   avatar_url: string | null;
   wallet: string | null;
   role: 'ADMIN' | 'MAINTAINER' | 'CONTRIBUTOR';
   created_at: string;
+}
+
+export interface ApiTokenResponse {
+  access_token: string;
+  token_type: string;
+  user: ApiUserOut;
 }
 
 export interface ApiRepositoryOut {
@@ -125,16 +132,57 @@ export interface ApiBountyOut {
   applicants?: ApiBountyApplicantOut[];
 }
 
+export interface ApiTrackedIssueOut {
+  id: number;
+  project_id: number;
+  repository_id: number;
+  issue_number: number;
+  title: string;
+  body: string | null;
+  html_url: string;
+  author_username: string | null;
+  labels: string[];
+  state: string;
+  has_bounty: boolean;
+  bounty_id: number | null;
+  created_at: string;
+  repository_name?: string | null;
+}
+
+export interface ApiAdminProjectCreate {
+  github_repo: string;
+  description?: string;
+  default_branch?: string;
+  owner_id?: number;
+}
+
+export interface ApiAdminProjectOut {
+  id: number;
+  owner_id: number;
+  github_repo: string;
+  description: string | null;
+  created_at: string;
+  total_repositories: number;
+  total_issues: number;
+  unrewarded_issues: number;
+  bounties_count: number;
+}
+
 export interface AdminStatsOut {
+  total_projects?: number;
   total_repositories: number;
   total_bounties: number;
-  open_bounties: number;
-  submitted_bounties: number;
-  completed_bounties: number;
-  total_points_allocated: number;
+  open_bounties?: number;
+  submitted_bounties?: number;
+  completed_bounties?: number;
+  bounties_by_status?: Record<string, number>;
+  total_points_allocated?: number;
   total_usdc_allocated: number;
   total_usdc_paid: number;
   total_users: number;
+  pending_submissions?: number;
+  unrewarded_issues?: number;
+  total_tracked_issues?: number;
 }
 
 export interface ReviewSubmissionPayload {
@@ -151,6 +199,23 @@ export const greenfieldApi = {
   },
 
   // Auth & Users
+  login: async (data: { email: string; password: string }): Promise<ApiTokenResponse> => {
+    const response = await apiClient.post<ApiTokenResponse>('/auth/login', data);
+    setAuthToken(response.data.access_token);
+    return response.data;
+  },
+  register: async (data: {
+    email: string;
+    password: string;
+    username?: string;
+  }): Promise<ApiTokenResponse> => {
+    const response = await apiClient.post<ApiTokenResponse>('/auth/register', data);
+    setAuthToken(response.data.access_token);
+    return response.data;
+  },
+  logout: () => {
+    setAuthToken(null);
+  },
   getGithubLoginUrl: (state?: string): string => {
     const params = state ? `?state=${encodeURIComponent(state)}` : '';
     return `${API_BASE_URL}/auth/github/login${params}`;
@@ -288,6 +353,21 @@ export const greenfieldApi = {
       const response = await apiClient.get<AdminStatsOut>('/admin/stats');
       return response.data;
     },
+    getProjects: async (): Promise<ApiAdminProjectOut[]> => {
+      const response = await apiClient.get<ApiAdminProjectOut[]>('/admin/projects');
+      return response.data;
+    },
+    createProject: async (data: ApiAdminProjectCreate): Promise<ApiAdminProjectOut> => {
+      const response = await apiClient.post<ApiAdminProjectOut>('/admin/projects', data);
+      return response.data;
+    },
+    updateProject: async (id: number, data: { description?: string }): Promise<ApiAdminProjectOut> => {
+      const response = await apiClient.patch<ApiAdminProjectOut>(`/admin/projects/${id}`, data);
+      return response.data;
+    },
+    deleteProject: async (id: number): Promise<void> => {
+      await apiClient.delete(`/admin/projects/${id}`);
+    },
     addRepository: async (data: {
       project_id: number;
       github_repo: string;
@@ -295,6 +375,33 @@ export const greenfieldApi = {
       default_branch?: string;
     }): Promise<ApiRepositoryOut> => {
       const response = await apiClient.post<ApiRepositoryOut>('/admin/repositories', data);
+      return response.data;
+    },
+    syncRepository: async (
+      repositoryId: number
+    ): Promise<{
+      repository_id: number;
+      repository: string;
+      total_synced: number;
+      new_issues: number;
+    }> => {
+      const response = await apiClient.post(`/admin/repositories/${repositoryId}/sync`);
+      return response.data;
+    },
+    getUnrewardedIssues: async (params?: {
+      repository_id?: number;
+      project_id?: number;
+    }): Promise<ApiTrackedIssueOut[]> => {
+      const response = await apiClient.get<ApiTrackedIssueOut[]>('/admin/unrewarded-issues', {
+        params,
+      });
+      return response.data;
+    },
+    assignReward: async (issueId: number, points: number): Promise<ApiBountyOut> => {
+      const response = await apiClient.post<ApiBountyOut>(
+        `/admin/unrewarded-issues/${issueId}/assign-reward`,
+        { points }
+      );
       return response.data;
     },
     reviewSubmission: async (

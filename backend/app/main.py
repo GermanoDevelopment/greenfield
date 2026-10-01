@@ -73,6 +73,16 @@ TAGS_METADATA = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    try:
+        from app.db.session import async_session_factory
+        from app.services.admin_seed import seed_default_admins
+
+        async with async_session_factory() as session:
+            await seed_default_admins(session)
+    except Exception as e:
+        import logging
+
+        logging.getLogger("greenfield").warning("Seed de admins ignorado: %s", e)
     yield
 
 

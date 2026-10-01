@@ -5,16 +5,13 @@ import DesygenButton from '../atoms/DesygenButton';
 import { useApp } from '../../context/AppContext';
 
 export const DualRoleCard: React.FC = () => {
-  const { setCurrentUser, availableUsers } = useApp();
+  const { isAuthenticated, openLoginModal } = useApp();
 
-  const handleSelectMaintainer = () => {
-    const maintainer = availableUsers.find((u) => u.role === 'maintainer');
-    if (maintainer) setCurrentUser(maintainer);
-  };
-
-  const handleSelectDeveloper = () => {
-    const dev = availableUsers.find((u) => u.role === 'developer');
-    if (dev) setCurrentUser(dev);
+  const handleActionClick = (e: React.MouseEvent) => {
+    if (!isAuthenticated) {
+      e.preventDefault();
+      openLoginModal();
+    }
   };
 
   return (
@@ -61,10 +58,10 @@ export const DualRoleCard: React.FC = () => {
 
         <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-xs text-slate-500 font-mono">
-            Perfil: @germano-maintainer
+            Modo: Mantenedor de Projetos
           </div>
 
-          <Link to="/bounties/new" onClick={handleSelectMaintainer}>
+          <Link to="/bounties/new" onClick={handleActionClick}>
             <DesygenButton variant="primary" size="md" icon={<GitPullRequest className="w-4 h-4" />}>
               Criar Bounty como Mantenedor
             </DesygenButton>
@@ -114,10 +111,10 @@ export const DualRoleCard: React.FC = () => {
 
         <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-xs text-slate-500 font-mono">
-            Perfis de Exemplo: @alice-dev, @carol-sol
+            Modo: Contribuidor Open-Source
           </div>
 
-          <Link to="/claim" onClick={handleSelectDeveloper}>
+          <Link to="/claim" onClick={handleActionClick}>
             <DesygenButton variant="secondary" size="md" icon={<DollarSign className="w-4 h-4" />}>
               Acessar Painel de Claim
             </DesygenButton>

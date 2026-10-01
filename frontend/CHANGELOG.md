@@ -11,8 +11,27 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### Planejado
 - Integração direta com smart contracts Anchor da Solana via RPC da Mainnet/Devnet.
-- Webhook receiver ou GitHub App para sincronização automática em tempo real de PRs e Merges.
 - Sistema de reputação on-chain (V2 do roadmap).
+
+---
+
+## [0.4.0] - 2026-09-09
+
+### Adicionado
+- **Integração com API do GitHub & Webhooks**:
+  - `webhooks.py`: Suporte ao evento `issues` (`opened`, `reopened`, `closed`) com assinatura HMAC SHA-256 para captura e monitoramento contínuo de novas tarefas criadas no GitHub.
+  - `github_service.py`: Suporte a `fetch_repository_details` e fallback automático para o token de ambiente `GITHUB_TOKEN`.
+- **Rastreamento de Issues & Publicação de Grants (`TrackedIssueModel`)**:
+  - Modelo `tracked_issues` com chave única por repositório e número da issue para impedir duplicatas.
+  - Endpoint `POST /api/v1/admin/repositories/{id}/sync` para varrer e importar issues abertas da API do GitHub sob demanda.
+  - Fila de moderação `GET /api/v1/admin/unrewarded-issues` listando issues sem recompensa definida.
+  - Endpoint `POST /api/v1/admin/unrewarded-issues/{id}/assign-reward` para fixar pontos e converter a issue em um Grant Público (`OPEN`) acessível para desenvolvedores aplicarem.
+  - CRUD administrativo completo de projetos em `/api/v1/admin/projects`.
+- **Interface Administrativa Aprimorada (`AdminPage.tsx`)**:
+  - Nova aba "Novas Issues Sem Reward" com indicador de contagem em tempo real e tabela detalhada (repositório, issue, autor, labels).
+  - Modal "Atribuir Reward & Publicar Grant" com atalhos de pontuação, cálculo de conversão em USDC e publicação instantânea.
+  - Botão "Sync Issues" em cada repositório cadastrado com feedback de progresso em tempo real.
+  - Banner explicativo de configuração do Webhook do GitHub com Payload URL e eventos monitorados.
 
 ---
 

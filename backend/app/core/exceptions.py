@@ -23,3 +23,8 @@ class ConflictError(DomainError):
 class ValidationError(DomainError):
     def __init__(self, detail: str):
         super().__init__(422, detail)
+
+
+class AuthenticationError(DomainError):
+    def __init__(self, detail: str = "Credenciais inválidas"):
+        super().__init__(401, detail)

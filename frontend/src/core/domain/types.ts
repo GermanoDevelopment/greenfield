@@ -39,8 +39,9 @@ export function usdcToPoints(usdc: number): number {
 
 export interface User {
   id: string;
-  github_id: number;
+  github_id?: number | null;
   github_username: string;
+  email?: string | null;
   name?: string;
   avatar_url?: string;
   wallet_address: string;

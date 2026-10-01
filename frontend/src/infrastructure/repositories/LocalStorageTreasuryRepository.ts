@@ -1,58 +1,60 @@
 import type { ITreasuryRepository } from '../../core/domain/ports';
 import type { Treasury } from '../../core/domain/types';
-import { INITIAL_TREASURY } from '../data/mockData';
+import { greenfieldApi } from '../../services/api';
 
-const TREASURY_STORAGE_KEY = 'greenfield_treasury_v1';
+const TOTAL_COMMUNITY_POOL = 25000;
 
 export class LocalStorageTreasuryRepository implements ITreasuryRepository {
-  private getStore(): Treasury {
-    try {
-      const raw = localStorage.getItem(TREASURY_STORAGE_KEY);
-      if (!raw) {
-        this.saveStore(INITIAL_TREASURY);
-        return INITIAL_TREASURY;
-      }
-      return JSON.parse(raw);
-    } catch {
-      return INITIAL_TREASURY;
-    }
-  }
-
-  private saveStore(treasury: Treasury): void {
-    try {
-      localStorage.setItem(TREASURY_STORAGE_KEY, JSON.stringify(treasury));
-    } catch (e) {
-      console.warn('LocalStorage save failed:', e);
-    }
-  }
-
   async getTreasury(): Promise<Treasury> {
-    return this.getStore();
+    try {
+      const bounties = await greenfieldApi.listBounties();
+      let reserved = 0;
+      let claimed = 0;
+
+      for (const b of bounties) {
+        const usdc = b.amount_usdc
+          ? b.amount_usdc / 1_000_000
+          : (b.points || 0) / 100;
+
+        if (b.status === 'COMPLETED') {
+          claimed += usdc;
+        } else if (
+          b.status === 'OPEN' ||
+          b.status === 'ASSIGNED' ||
+          b.status === 'SUBMITTED'
+        ) {
+          reserved += usdc;
+        }
+      }
+
+      const available = Math.max(0, TOTAL_COMMUNITY_POOL - reserved - claimed);
+
+      return {
+        total_usdc: TOTAL_COMMUNITY_POOL,
+        reserved_usdc: reserved,
+        claimed_usdc: claimed,
+        available_usdc: available,
+      };
+    } catch {
+      return {
+        total_usdc: TOTAL_COMMUNITY_POOL,
+        reserved_usdc: 0,
+        claimed_usdc: 0,
+        available_usdc: TOTAL_COMMUNITY_POOL,
+      };
+    }
   }
 
   async reserveFunds(amountUsdc: number): Promise<boolean> {
-    const store = this.getStore();
-    if (store.available_usdc < amountUsdc) {
-      return false;
-    }
-
-    store.reserved_usdc += amountUsdc;
-    store.available_usdc = store.total_usdc - store.reserved_usdc - store.claimed_usdc;
-    this.saveStore(store);
-    return true;
+    const t = await this.getTreasury();
+    return t.available_usdc >= amountUsdc;
   }
 
-  async claimFunds(amountUsdc: number): Promise<boolean> {
-    const store = this.getStore();
-    store.reserved_usdc = Math.max(0, store.reserved_usdc - amountUsdc);
-    store.claimed_usdc += amountUsdc;
-    store.available_usdc = store.total_usdc - store.reserved_usdc - store.claimed_usdc;
-    this.saveStore(store);
+  async claimFunds(_amountUsdc: number): Promise<boolean> {
     return true;
   }
 
   async resetToDefault(): Promise<Treasury> {
-    this.saveStore(INITIAL_TREASURY);
-    return INITIAL_TREASURY;
+    return this.getTreasury();
   }
 }

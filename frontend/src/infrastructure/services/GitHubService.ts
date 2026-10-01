@@ -1,56 +1,99 @@
 import type { IGitHubService } from '../../core/domain/ports';
 import type { Issue, Repository } from '../../core/domain/types';
-import { MOCK_ISSUES, MOCK_REPOSITORIES } from '../data/mockData';
-
-const REPOS_STORAGE_KEY = 'greenfield_repos_v1';
+import { greenfieldApi } from '../../services/api';
 
 export class GitHubService implements IGitHubService {
-  private getRepositoriesStore(): Repository[] {
-    try {
-      const raw = localStorage.getItem(REPOS_STORAGE_KEY);
-      if (!raw) {
-        localStorage.setItem(REPOS_STORAGE_KEY, JSON.stringify(MOCK_REPOSITORIES));
-        return MOCK_REPOSITORIES;
-      }
-      return JSON.parse(raw);
-    } catch {
-      return MOCK_REPOSITORIES;
-    }
-  }
-
-  private saveRepositoriesStore(repos: Repository[]): void {
-    try {
-      localStorage.setItem(REPOS_STORAGE_KEY, JSON.stringify(repos));
-    } catch (e) {
-      console.warn('LocalStorage save failed for repos:', e);
-    }
-  }
-
   async listRepositories(): Promise<Repository[]> {
-    return this.getRepositoriesStore();
+    try {
+      const projects = await greenfieldApi.listProjects();
+      const repos: Repository[] = [];
+      for (const project of projects) {
+        if (project.repositories && project.repositories.length > 0) {
+          for (const r of project.repositories) {
+            repos.push({
+              id: String(r.id),
+              github_repository_id: r.id,
+              owner: r.github_owner,
+              name: r.github_name,
+              github_url: `https://github.com/${r.github_repo}`,
+              maintainer_user_id: String(project.owner_id),
+              default_branch: r.default_branch,
+              approved_for_round: r.is_active,
+            });
+          }
+        } else {
+          const parts = project.github_repo.split('/');
+          repos.push({
+            id: String(project.id),
+            github_repository_id: project.id,
+            owner: parts[0] || 'owner',
+            name: parts[1] || project.github_repo,
+            github_url: `https://github.com/${project.github_repo}`,
+            maintainer_user_id: String(project.owner_id),
+            default_branch: 'main',
+            approved_for_round: true,
+          });
+        }
+      }
+      return repos;
+    } catch (err) {
+      console.warn('Erro ao carregar repositórios da API:', err);
+      return [];
+    }
   }
 
   async listIssues(repositoryId?: string): Promise<Issue[]> {
-    if (!repositoryId) return MOCK_ISSUES;
-    return MOCK_ISSUES.filter((i) => i.repository_id === repositoryId);
+    try {
+      if (!repositoryId) {
+        const repos = await this.listRepositories();
+        const issuesArrays = await Promise.all(
+          repos.map((r) => this.listIssues(r.id))
+        );
+        return issuesArrays.flat();
+      }
+      const numericId = parseInt(repositoryId.replace(/\D/g, ''), 10);
+      if (isNaN(numericId)) return [];
+      const apiIssues = await greenfieldApi.listRepositoryIssues(numericId);
+      return apiIssues.map((i) => ({
+        id: `issue-${repositoryId}-${i.number}`,
+        github_issue_id: i.number,
+        repository_id: repositoryId,
+        number: i.number,
+        title: i.title,
+        description: i.body || '',
+        url: i.html_url,
+        status: i.state.toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN',
+      }));
+    } catch (err) {
+      console.warn('Erro ao carregar issues da API:', err);
+      return [];
+    }
   }
 
   async getIssueById(issueId: string): Promise<Issue | null> {
-    return MOCK_ISSUES.find((i) => i.id === issueId) || null;
+    try {
+      const issues = await this.listIssues();
+      return (
+        issues.find(
+          (i) => i.id === issueId || String(i.github_issue_id) === issueId
+        ) || null
+      );
+    } catch {
+      return null;
+    }
   }
 
-  async setRepositoryRoundStatus(repoId: string, approved: boolean): Promise<Repository> {
-    const repos = this.getRepositoriesStore();
-    const index = repos.findIndex((r) => r.id === repoId);
-    if (index === -1) throw new Error(`Repositório ${repoId} não encontrado.`);
-
-    repos[index] = {
-      ...repos[index],
+  async setRepositoryRoundStatus(
+    repoId: string,
+    approved: boolean
+  ): Promise<Repository> {
+    const repos = await this.listRepositories();
+    const repo = repos.find((r) => r.id === repoId);
+    if (!repo) throw new Error(`Repositório ${repoId} não encontrado.`);
+    return {
+      ...repo,
       approved_for_round: approved,
     };
-
-    this.saveRepositoriesStore(repos);
-    return repos[index];
   }
 
   async assignIssueToDeveloper(
@@ -58,8 +101,6 @@ export class GitHubService implements IGitHubService {
     _issueNumber: number,
     _githubUsername: string
   ): Promise<boolean> {
-    // Simula a latência de chamada de rede da API REST do GitHub (POST /repos/{owner}/{repo}/issues/{issue_number}/assignees)
-    await new Promise((resolve) => setTimeout(resolve, 600));
     return true;
   }
 }
