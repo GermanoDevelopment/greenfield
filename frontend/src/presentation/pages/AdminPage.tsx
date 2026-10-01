@@ -61,7 +61,7 @@ export const AdminPage: React.FC = () => {
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   // Carregar dados gerais
-  const loadAdminData = async () => {
+  const loadAdminData = React.useCallback(async () => {
     setLoadingStats(true);
     try {
       // Stats
@@ -107,11 +107,11 @@ export const AdminPage: React.FC = () => {
     } finally {
       setLoadingStats(false);
     }
-  };
+  }, [isBackendConnected]);
 
   useEffect(() => {
     loadAdminData();
-  }, [isBackendConnected]);
+  }, [loadAdminData]);
 
   // Adicionar Novo Repositório
   const handleAddRepository = async (e: React.FormEvent) => {

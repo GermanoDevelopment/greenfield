@@ -36,17 +36,17 @@ export const CreateBountyForm: React.FC = () => {
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchRepos = async () => {
+  const fetchRepos = React.useCallback(async () => {
     const list = await gitHubService.listRepositories();
     setRepositories(list);
-    if (list.length > 0 && !selectedRepoId) {
-      setSelectedRepoId(list[0].id);
+    if (list.length > 0) {
+      setSelectedRepoId((prev) => prev || list[0].id);
     }
-  };
+  }, [gitHubService]);
 
   useEffect(() => {
     fetchRepos();
-  }, [gitHubService]);
+  }, [fetchRepos]);
 
   useEffect(() => {
     if (!selectedRepoId) return;

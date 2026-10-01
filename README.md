@@ -22,7 +22,7 @@ Repository: [github.com/GermanoDevelopment/greenfield](https://github.com/German
 - **Backend:** FastAPI, SQLAlchemy 2 (async), asyncpg, Alembic. Port `8080`.
 - **Frontend:** React 19, Vite, TypeScript, Tailwind, `@solana/kit`. Port `5173` (dev) or `3000` (Docker, Nginx).
 - **Database:** Postgres 15. Port `5432`.
-- **Contract:** Anchor (Rust). A scaffold today, not used for payouts.
+- **Contract:** Anchor (Rust) escrow program: treasury, per-bounty escrow and contributor claim.
 
 ## Quickstart
 
@@ -91,13 +91,15 @@ The `.env.example` files work out of the box.
 - `GITHUB_TOKEN`: token for GitHub API calls when the user has none.
 - `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login.
 - `SOLANA_RPC_URL`: defaults to devnet.
-- `SOLANA_TREASURY_KEYPAIR_PATH` or `SOLANA_TREASURY_PRIVATE_KEY` (base58): treasury that pays bounties.
+- `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY`: set both to enable on-chain escrow (see [Payouts](#payouts)).
+- `SOLANA_TREASURY_KEYPAIR_PATH` or `SOLANA_TREASURY_PRIVATE_KEY` (base58): treasury key for the custodial fallback.
 - `USDC_MINT_DEVNET`: USDC mint used for payouts.
 
 **Frontend** (`frontend/.env`). Vite reads these at boot, so restart `npm run dev` after changes:
 
 - `VITE_API_URL`: defaults to `http://localhost:8080/api/v1`.
 - `VITE_SOLANA_RPC_URL` and `VITE_SOLANA_CHAIN`: default to devnet.
+- `VITE_SOLANA_PROGRAM_ID` and `VITE_SOLANA_USDC_MINT`: used to build the contributor's claim transaction. Not in `.env.example` yet.
 
 ## How it works
 
@@ -112,14 +114,13 @@ Rules:
 - **One payout per issue.** `complete` is only valid from `SUBMITTED`.
 - **Fixed conversion.** `100 points = $1 USDC = 1,000,000 micro-USDC`.
 
-### Payouts today
+### Payouts
 
-Payouts do **not** go through the Anchor contract (it only has `initialize`). On completion the backend sends SPL USDC from the treasury to the contributor's wallet using [`solinpy`](https://pypi.org/project/solinpy/).
+The mode depends on configuration.
 
-- Without a configured treasury, the backend uses an ephemeral keypair with no funds.
-- If the contributor has no linked wallet, the bounty completes without a payout.
-- If the transfer fails for any reason (no `solinpy`, RPC down, empty treasury), the backend stores a **simulated** signature, `sim_<wallet>_<amount>`, and carries on. That is not a real transaction.
-- For real devnet payouts, run `uv pip install solinpy --no-deps` in `backend/` and configure the treasury.
+**On-chain escrow.** Active when both `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY` are set. The Anchor program holds the funds, and the backend runs each step as the bounty advances: create, assign (when the accepted contributor has a wallet), approve on merge, cancel. The contributor then signs `claim` from their wallet in the app. If an on-chain step fails, the database change is rolled back and the API returns an error.
+
+**Custodial fallback.** The default when either variable is missing. On merge the backend sends SPL USDC from a treasury key straight to the contributor's wallet. The key comes from `SOLANA_AUTHORITY_SECRET_KEY`, else `SOLANA_TREASURY_KEYPAIR_PATH`, else `SOLANA_TREASURY_PRIVATE_KEY`; with none of them, the backend uses an ephemeral keypair with no funds. If the contributor has no linked wallet, or the transfer fails, the bounty still completes with no `tx_signature` and no error is reported.
 
 ## Commands
 
@@ -141,10 +142,10 @@ npm run lint                     # oxlint
 # contract/ (optional)
 npm install
 anchor build
-anchor test
+npm test
 ```
 
-The contract uses the Anchor placeholder program ID `Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS` and the wallet at `~/.config/solana/id.json`. For devnet: `solana config set --url devnet && solana airdrop 2`.
+The contract wallet is `~/.config/solana/id.json`. For devnet: `solana config set --url devnet && solana airdrop 2`. Known inconsistency: `declare_id!` in `lib.rs` is `DFebMWgv4WEJgzodxnQwvXavUeFKXT3mPPMXtMrWyoRv`, but `Anchor.toml` still lists the placeholder `Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS`.
 
 ## API
 
@@ -165,7 +166,7 @@ Route groups: `auth`, `users`, `projects`, `repositories`, `bounties`, `admin`, 
 greenfield/
 ├── backend/             # FastAPI app, Alembic migrations, pytest
 ├── frontend/            # React app (core / infrastructure / presentation)
-├── contract/            # Anchor program (scaffold)
+├── contract/            # Anchor escrow program and integration tests
 ├── docker-compose.yml   # Postgres + backend + frontend
 └── FRONTEND-REQUIREMENTS.md
 ```
@@ -178,8 +179,8 @@ greenfield/
 - **Frontend shows `Failed to fetch` or a CORS error:** check `VITE_API_URL` and that `curl localhost:8080/api/v1/health` works.
 - **`VITE_*` change has no effect:** restart `npm run dev`. In Docker, rebuild with `--build`.
 - **`/auth/github/login` fails:** the GitHub OAuth variables are empty. Use email and password in development.
-- **`tx_signature` starts with `sim_`:** the payout was simulated. See [Payouts today](#payouts-today).
-- **Bounty completed with no `tx_signature`:** the contributor has no wallet linked (`PATCH /users/me`).
+- **Bounty completed with no `tx_signature` (custodial mode):** the contributor has no wallet linked (`PATCH /users/me`), or the transfer failed silently. See [Payouts](#payouts).
+- **`On-chain transaction failed` (escrow mode):** the Solana step was rejected, so the change was rolled back. Check `SOLANA_PROGRAM_ID`, the authority key balance and `SOLANA_RPC_URL`.
 - **Webhook returns `403 Invalid signature`:** the secret in GitHub differs from `GITHUB_WEBHOOK_SECRET`.
 
 Full local reset:

@@ -146,6 +146,14 @@ class BountyModel(Base, TimestampMixin):
         back_populates="bounty", uselist=False
     )
 
+    @property
+    def claim_signature(self) -> str | None:
+        return self.tx_signature
+
+    @claim_signature.setter
+    def claim_signature(self, value: str | None) -> None:
+        self.tx_signature = value
+
 
 class TrackedIssueModel(Base, TimestampMixin):
     __tablename__ = "tracked_issues"
@@ -175,4 +183,3 @@ class TrackedIssueModel(Base, TimestampMixin):
     project: Mapped[ProjectModel] = relationship(back_populates="tracked_issues")
     repository: Mapped[RepositoryModel] = relationship(back_populates="tracked_issues")
     bounty: Mapped[BountyModel | None] = relationship(back_populates="tracked_issue")
-

@@ -10,6 +10,7 @@ from app.db.base import BountyApplicantModel, BountyModel
 from app.schemas.bounty import (
     BountyApplicantCreate,
     BountyApplicantOut,
+    BountyClaimSubmit,
     BountyCreate,
     BountyOut,
     BountyRewardUpdate,
@@ -267,4 +268,24 @@ async def reject_submission(
     """
     bounty = await _get_bounty_or_404(db, bounty_id)
     return await bounty_service.reject_bounty_submission(db, bounty, current_user)
+
+
+@router.post(
+    "/{bounty_id}/claimed",
+    response_model=BountyOut,
+    summary="Reportar resgate (claim) on-chain assinado pela carteira",
+)
+async def report_claim(
+    bounty_id: int,
+    data: BountyClaimSubmit,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> BountyModel:
+    """
+    Registra e valida a assinatura da transação on-chain executada
+    pela carteira do desenvolvedor.
+    """
+    bounty = await _get_bounty_or_404(db, bounty_id)
+    return await bounty_service.record_claim(db, bounty, current_user, data.tx_signature)
+
 

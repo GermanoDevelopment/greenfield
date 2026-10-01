@@ -15,10 +15,10 @@ dependencies = [
     "pyjwt>=2.10",
     "httpx>=0.28",
     "base58>=2.1",
-    "solana>=0.36.11",
     "solders>=0.27.1",
     "mnemonic>=0.21",
     "requests>=2.31.0",
+    "solinpy",
 ]
 
 [dependency-groups]
@@ -39,3 +39,6 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "ASYNC"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.uv.sources]
+solinpy = { git = "https://github.com/carcaras/solinpy.git", rev = "283c1eaab15821f5e1eb74b15b665cd166ee902b" }

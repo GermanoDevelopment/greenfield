@@ -37,3 +37,7 @@ yarn-error.log*
 
 # Database & Docker volumes
 postgres_data/
+
+.agents
+.claude
+demo-video/

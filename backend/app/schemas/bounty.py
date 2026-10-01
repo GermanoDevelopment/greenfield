@@ -11,6 +11,7 @@ class BountyStatus(StrEnum):
     ASSIGNED = "ASSIGNED"
     SUBMITTED = "SUBMITTED"
     COMPLETED = "COMPLETED"
+    CLAIMED = "CLAIMED"
     CANCELLED = "CANCELLED"
 
 
@@ -19,7 +20,8 @@ BOUNTY_TRANSITIONS: dict[BountyStatus, set[BountyStatus]] = {
     BountyStatus.OPEN: {BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
     BountyStatus.ASSIGNED: {BountyStatus.SUBMITTED, BountyStatus.CANCELLED},
     BountyStatus.SUBMITTED: {BountyStatus.COMPLETED, BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
-    BountyStatus.COMPLETED: set(),
+    BountyStatus.COMPLETED: {BountyStatus.CLAIMED},
+    BountyStatus.CLAIMED: set(),
     BountyStatus.CANCELLED: set(),
 }
 
@@ -122,6 +124,15 @@ class BountyRewardUpdate(BaseModel):
     )
 
 
+class BountyClaimSubmit(BaseModel):
+    """Submetido pelo desenvolvedor ao assinar a transação de claim on-chain."""
+    tx_signature: str = Field(
+        min_length=64,
+        max_length=128,
+        description="Assinatura da transação Solana Devnet",
+    )
+
+
 class BountyOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -154,7 +165,7 @@ class BountyOut(BaseModel):
         description="Valor em micro-USDC (1 USDC = 1.000.000)", examples=[5000000]
     )
     status: BountyStatus = Field(
-        description="Status atual do bounty (OPEN, ASSIGNED, SUBMITTED, COMPLETED, CANCELLED)",
+        description="Status atual do bounty (OPEN, ASSIGNED, SUBMITTED, COMPLETED, CLAIMED)",
         examples=[BountyStatus.OPEN],
     )
     escrow_pda: str | None = Field(default=None, description="Endereço PDA do escrow on-chain")
@@ -162,6 +173,10 @@ class BountyOut(BaseModel):
         default=None,
         description="Assinatura da transação de pagamento on-chain na Solana (Solana Explorer)",
         examples=["5J7XQ8..."],
+    )
+    claim_signature: str | None = Field(
+        default=None,
+        description="Assinatura da transação on-chain reportada pelo claim",
     )
     claimed_at: datetime | None = Field(
         default=None, description="Data e hora da liquidação on-chain"

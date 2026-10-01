@@ -19,6 +19,9 @@ import {
   type ApiBountyOut,
 } from '../../services/api';
 
+// Cada issue rastreada corresponde a uma pontuação fixa, sem valor monetário associado
+const ISSUE_POINTS = 120;
+
 export const RepositoryIssuesPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const { isBackendConnected } = useApp();
@@ -41,7 +44,7 @@ export const RepositoryIssuesPage: React.FC = () => {
 
   const repoId = id ? parseInt(id, 10) : 1;
 
-  const loadData = async () => {
+  const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       try {
@@ -62,11 +65,11 @@ export const RepositoryIssuesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [repoId, isBackendConnected]);
 
   useEffect(() => {
     loadData();
-  }, [repoId, isBackendConnected]);
+  }, [loadData]);
 
   // Candidatar-se à Bounty
   const handleApply = async () => {
@@ -133,7 +136,7 @@ export const RepositoryIssuesPage: React.FC = () => {
             Issues & Bounties do Repositório
           </h1>
           <p className="text-sm text-[#889887] mt-1">
-            Cada issue pontuada gera uma recompensa garantida em USDC após o merge do PR.
+            Cada issue resolvida concede {ISSUE_POINTS} pontos ao desenvolvedor após o merge do PR.
           </p>
         </div>
 
@@ -199,8 +202,8 @@ export const RepositoryIssuesPage: React.FC = () => {
               (b) => b.issue_number === issue.number || b.id === issue.bounty_id
             );
             const status = linkedBounty?.status || issue.bounty_status || (issue.has_bounty ? 'OPEN' : 'SEM BOUNTY');
-            const points = linkedBounty?.points || issue.bounty_points || 0;
-            const usdc = linkedBounty?.amount_usdc || points;
+            // Cada issue vale uma pontuação fixa — não há valor monetário associado à issue em si
+            const points = ISSUE_POINTS;
 
             return (
               <div
@@ -246,11 +249,8 @@ export const RepositoryIssuesPage: React.FC = () => {
                       <div className="text-xs text-[#889887] font-medium">Recompensa</div>
                       <div className="text-lg sm:text-xl font-black text-[#28B110] flex items-center justify-end gap-1">
                         <Coins className="w-4 h-4" />
-                        <span>${usdc} USDC</span>
+                        <span>{points} pontos</span>
                       </div>
-                      <span className="text-[10px] font-mono text-[#687867]">
-                        ({points} pontos)
-                      </span>
                     </div>
 
                     <div className="mt-1">
@@ -318,7 +318,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                             issue_number: issue.number,
                             issue_title: issue.title,
                             issue_body: issue.body,
-                            amount_usdc: usdc,
+                            amount_usdc: points,
                             points: points,
                             status: 'OPEN',
                             escrow_pda: null,
@@ -350,7 +350,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                             issue_number: issue.number,
                             issue_title: issue.title,
                             issue_body: issue.body,
-                            amount_usdc: usdc,
+                            amount_usdc: points,
                             points: points,
                             status: 'ASSIGNED',
                             escrow_pda: null,
@@ -424,7 +424,7 @@ export const RepositoryIssuesPage: React.FC = () => {
             <div className="p-3 bg-[#101410] rounded-xl border border-[#252E24] text-xs space-y-1">
               <div className="flex justify-between text-[#889887]">
                 <span>Recompensa Fixada:</span>
-                <span className="font-bold text-[#28B110]">${applyModalBounty.amount_usdc} USDC</span>
+                <span className="font-bold text-[#28B110]">{applyModalBounty.points} pontos</span>
               </div>
               <div className="flex justify-between text-[#889887]">
                 <span>Invariante:</span>
@@ -475,14 +475,14 @@ export const RepositoryIssuesPage: React.FC = () => {
                 type="url"
                 value={prUrl}
                 onChange={(e) => setPrUrl(e.target.value)}
-                placeholder="https://github.com/solana-labs/solinpy-sdk/pull/52"
+                placeholder="https://github.com/carcaras/solinpy/pull/52"
                 className="w-full bg-[#101410] border border-[#252E24] rounded-xl p-3 text-xs text-[#D2DFD1] placeholder-[#687867] focus:outline-none focus:border-[#28B110]"
               />
             </div>
 
             <div className="p-3 bg-[#101410] rounded-xl border border-[#252E24] text-xs text-[#889887] leading-relaxed">
               Ao submeter o PR, o status mudará para <strong className="text-blue-400">SUBMITTED</strong>.
-              O mantenedor ou administrador do projeto irá revisar o código e, após o merge, o pagamento de <strong className="text-[#28B110]">${submitPrModalBounty.amount_usdc} USDC</strong> será disparado via Devnet.
+              O mantenedor ou administrador do projeto irá revisar o código e, após o merge, <strong className="text-[#28B110]">{submitPrModalBounty.points} pontos</strong> serão creditados ao seu perfil.
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">

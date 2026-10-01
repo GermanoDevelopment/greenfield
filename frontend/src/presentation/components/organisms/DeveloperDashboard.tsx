@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import MetricCard from '../molecules/MetricCard';
 import BountyTable from './BountyTable';
-import ClaimModal from '../molecules/ClaimModal';
+import ClaimModal from './ClaimModal';
 import { Award, Code2, Sparkles, DollarSign, ArrowRight } from 'lucide-react';
 import type { Bounty } from '../../../core/domain/types';
 

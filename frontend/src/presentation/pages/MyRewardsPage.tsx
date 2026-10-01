@@ -47,8 +47,8 @@ export const MyRewardsPage: React.FC = () => {
     setTimeout(() => setCopiedTx(null), 2000);
   };
 
-  const totalUsdc = rewards.reduce((sum, r) => sum + r.amount_usdc, 0);
   const totalPoints = rewards.reduce((sum, r) => sum + r.points, 0);
+  const avgPointsPerTask = rewards.length > 0 ? Math.round(totalPoints / rewards.length) : 0;
 
   return (
     <div className="space-y-6">
@@ -60,7 +60,7 @@ export const MyRewardsPage: React.FC = () => {
             Minhas Recompensas (Rewards)
           </h1>
           <p className="text-sm text-[#889887] mt-1">
-            Histórico de tarefas concluídas e pagamentos em USDC transferidos on-chain no cluster Solana Devnet.
+            Histórico de tarefas concluídas e pontos conquistados por contribuições aprovadas.
           </p>
         </div>
       </div>
@@ -69,27 +69,14 @@ export const MyRewardsPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-5 rounded-2xl bg-[#161C15] border border-[#252E24] relative overflow-hidden">
           <div className="flex items-center justify-between text-[#889887] text-xs mb-2">
-            <span>Total Recebido</span>
-            <Coins className="w-4 h-4 text-[#28B110]" />
+            <span>Pontuação Total</span>
+            <Award className="w-4 h-4 text-[#28B110]" />
           </div>
           <div className="text-3xl font-black text-[#28B110]">
-            ${totalUsdc.toLocaleString()} <span className="text-sm font-normal text-[#889887]">USDC</span>
-          </div>
-          <p className="text-[11px] text-[#687867] mt-1">
-            Transferidos diretamente para sua carteira
-          </p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-[#161C15] border border-[#252E24]">
-          <div className="flex items-center justify-between text-[#889887] text-xs mb-2">
-            <span>Pontuação Total</span>
-            <Award className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-3xl font-black text-white">
             {totalPoints.toLocaleString()} <span className="text-sm font-normal text-[#889887]">pts</span>
           </div>
           <p className="text-[11px] text-[#687867] mt-1">
-            Taxa de conversão canônica: 1 pt = 1 USDC
+            Conquistados por contribuições aprovadas e mergeadas
           </p>
         </div>
 
@@ -105,6 +92,19 @@ export const MyRewardsPage: React.FC = () => {
             PRs revisados, aprovados e mergeados
           </p>
         </div>
+
+        <div className="p-5 rounded-2xl bg-[#161C15] border border-[#252E24]">
+          <div className="flex items-center justify-between text-[#889887] text-xs mb-2">
+            <span>Média por Task</span>
+            <Coins className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-3xl font-black text-white">
+            {avgPointsPerTask.toLocaleString()} <span className="text-sm font-normal text-[#889887]">pts</span>
+          </div>
+          <p className="text-[11px] text-[#687867] mt-1">
+            Pontuação média conquistada por task concluída
+          </p>
+        </div>
       </div>
 
       {/* Tabela / Lista de Recompensas */}
@@ -118,7 +118,7 @@ export const MyRewardsPage: React.FC = () => {
           <Coins className="w-12 h-12 text-[#687867] mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-white">Nenhuma recompensa registrada</h3>
           <p className="text-sm text-[#889887] mt-1">
-            Complete tarefas e submeta PRs para receber pagamentos em USDC na rede Solana Devnet.
+            Complete tarefas e submeta PRs para conquistar pontos por contribuição.
           </p>
         </div>
       ) : (
@@ -165,10 +165,10 @@ export const MyRewardsPage: React.FC = () => {
                 <div className="flex flex-col items-start md:items-end gap-1.5 shrink-0">
                   <div className="text-xl font-black text-[#28B110] flex items-center gap-1">
                     <Sparkles className="w-4 h-4" />
-                    +${bounty.amount_usdc} USDC
+                    +{bounty.points} pontos
                   </div>
                   <span className="inline-flex items-center gap-1 text-[11px] font-mono text-[#28B110] bg-[#182618] border border-[#28B110]/40 px-2.5 py-0.5 rounded-full">
-                    <CheckCircle2 className="w-3 h-3" /> Pago via Devnet
+                    <CheckCircle2 className="w-3 h-3" /> Confirmado via Devnet
                   </span>
                 </div>
               </div>
