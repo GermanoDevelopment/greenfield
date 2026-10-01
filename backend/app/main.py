@@ -104,14 +104,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Middleware de monitoramento de performance
-    @app.middleware("http")
-    async def performance_monitor(request: Request, call_next):
-        # Pode ser expandido para monitorar tempos de execução,
-        # contar requisições, etc.
-        response = await call_next(request)
-        return response
-
     app.include_router(api_router)
 
     @app.exception_handler(DomainError)

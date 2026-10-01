@@ -18,8 +18,15 @@ from app.services import github_service, solana_service
 
 
 async def get_bounty(session: AsyncSession, bounty_id: int) -> BountyModel:
-    # Versão otimizada que evita selectinload desnecessário
-    stmt = select(BountyModel).where(BountyModel.id == bounty_id)
+    stmt = (
+        select(BountyModel)
+        .where(BountyModel.id == bounty_id)
+        .options(
+            selectinload(BountyModel.issuer),
+            selectinload(BountyModel.hunter),
+            selectinload(BountyModel.applicants).selectinload(BountyApplicantModel.user),
+        )
+    )
     result = await session.execute(stmt)
     bounty = result.scalar_one_or_none()
     if bounty is None:
@@ -122,13 +129,16 @@ async def list_bounties(
     project_id: int | None = None,
     hunter_id: int | None = None,
     repository_id: int | None = None,
-    limit: int = 100,
-    offset: int = 0
 ) -> list[BountyModel]:
-    # Versão otimizada com paginação e filtragem condicional
-    stmt = select(BountyModel)
-    
-    # Filtragem condicional somente quando necessário
+    stmt = (
+        select(BountyModel)
+        .options(
+            selectinload(BountyModel.issuer),
+            selectinload(BountyModel.hunter),
+            selectinload(BountyModel.applicants).selectinload(BountyApplicantModel.user),
+        )
+        .order_by(BountyModel.created_at.desc())
+    )
     if status is not None:
         stmt = stmt.where(BountyModel.status == status.value)
     if project_id is not None:
@@ -137,10 +147,6 @@ async def list_bounties(
         stmt = stmt.where(BountyModel.hunter_id == hunter_id)
     if repository_id is not None:
         stmt = stmt.where(BountyModel.repository_id == repository_id)
-        
-    # Adicionar ordenação e paginação
-    stmt = stmt.order_by(BountyModel.created_at.desc()).limit(limit).offset(offset)
-    
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
@@ -613,36 +619,5 @@ async def assign_reward_to_tracked_issue(
     await session.commit()
     await session.refresh(bounty)
     return bounty
-
-
-# Função de stats com cache
-async def get_admin_stats_cached(session: AsyncSession, cache_ttl: int = 300) -> dict:
-    """
-    Obter estatísticas administrativas com cache
-    """
-    from app.services.cache_service import get_cached_data, set_cached_data
-    
-    cache_key = "admin_stats"
-    
-    # Tentar obter do cache
-    cached_stats = await get_cached_data(cache_key, cache_ttl)
-    if cached_stats:
-        return cached_stats
-    
-    # Se não estiver em cache, calcular e armazenar
-    stats = await get_admin_stats(session)
-    
-    # Armazenar no cache
-    await set_cached_data(cache_key, stats, cache_ttl)
-    
-    return stats
-
-# Função para invalidar o cache de stats
-async def invalidate_admin_stats_cache() -> bool:
-    """
-    Invalidar cache de estatísticas administrativas
-    """
-    from app.services.cache_service import invalidate_cache
-    return await invalidate_cache("admin_stats")
 
 

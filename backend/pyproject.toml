@@ -19,7 +19,6 @@ dependencies = [
     "solders>=0.27.1",
     "mnemonic>=0.21",
     "requests>=2.31.0",
-    "redis>=5.0",
 ]
 
 [dependency-groups]
