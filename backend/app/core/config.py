@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     solana_treasury_private_key: str | None = None
 
     admin_github_usernames: list[str] = ["GermanoDevelopment"]
+    
+    # Redis configuration
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
 
     @property
     def database_url_sync(self) -> str:
