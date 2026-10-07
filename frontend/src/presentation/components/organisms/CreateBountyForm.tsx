@@ -142,7 +142,7 @@ export const CreateBountyForm: React.FC = () => {
     }
   };
 
-  const developers = availableUsers.filter((u) => u.role === 'developer');
+  const developers = availableUsers.filter((u) => u.role === 'developer' || u.role === 'CONTRIBUTOR');
 
   return (
     <div className="flex flex-col gap-6">

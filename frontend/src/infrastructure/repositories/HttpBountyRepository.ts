@@ -119,8 +119,8 @@ export class HttpBountyRepository implements IBountyRepository {
 
   async create(bountyData: Omit<Bounty, 'id' | 'created_at'>): Promise<Bounty> {
     const numericProjectId = parseInt(bountyData.repository_id.replace(/\D/g, ''), 10) || 1;
-    const issueNum = bountyData.issue?.number || parseInt(bountyData.issue_id.replace(/\D/g, ''), 10) || 1;
-    const issueUrl = bountyData.issue?.url || `https://github.com/GermanoDevelopment/greenfield/issues/${issueNum}`;
+    const issueNum = bountyData.issue?.number || (() => { const parts = bountyData.issue_id.split('-'); return parseInt(parts[parts.length - 1], 10) || 1; })();
+    const issueUrl = bountyData.issue?.url || bountyData.issue?.html_url || `https://github.com/GermanoDevelopment/greenfield/issues/${issueNum}`;
 
     const created = await greenfieldApi.createBounty({
       project_id: numericProjectId,
