@@ -88,9 +88,17 @@ async def create_bounty(
     if solana_service.is_onchain_enabled():
         _require_wallet(issuer, "maintainer")
 
+    # Enforce one bounty per issue
+    existing_stmt = select(BountyModel).where(BountyModel.issue_url == issue_url)
+    existing_bounty = (await session.execute(existing_stmt)).scalar_one_or_none()
+    if existing_bounty:
+        raise ConflictError(f"A bounty already exists for issue {issue_url}")
+
     issue_open = await github_service.is_issue_open(issue_url)
     if issue_open is False:
         raise ValidationError("GitHub issue is closed")
+    if issue_open is None:
+        raise ValidationError("Unable to verify GitHub issue status (issue not found, inaccessible, or rate limited)")
 
     # If amount_usdc is not specified, calculate canonical conversion:
     # 100 pts = $1 USDC = 1_000_000 micro-USDC
@@ -296,10 +304,21 @@ async def update_bounty_reward(
 
 
 async def assign_bounty(
-    session: AsyncSession, bounty: BountyModel, hunter: UserModel
+    session: AsyncSession,
+    bounty: BountyModel,
+    actor: UserModel,
+    hunter_id: int | None = None,
 ) -> BountyModel:
-    if bounty.issuer_id == hunter.id:
+    if actor.id != bounty.issuer_id and actor.role != "ADMIN":
+        raise ForbiddenError("Direct self-assignment is disabled. Contributors must apply to the bounty.")
+
+    if hunter_id is None or hunter_id == bounty.issuer_id:
         raise ForbiddenError("The bounty issuer cannot assign it to themselves")
+
+    hunter = await session.get(UserModel, hunter_id)
+    if hunter is None:
+        raise NotFoundError("Hunter")
+
     if solana_service.is_onchain_enabled():
         _require_wallet(hunter, "developer")
 

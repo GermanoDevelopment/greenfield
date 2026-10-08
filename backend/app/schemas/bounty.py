@@ -1,9 +1,13 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 from app.schemas.user import UserPublicOut, validate_solana_wallet
+
+MAX_BOUNTY_POINTS: int = 1_000_000  # 1,000,000 points = $10,000 USDC
+MAX_BOUNTY_USDC: int = 10_000_000_000  # 10,000 USDC in micro-USDC
+MICRO_USDC_PER_POINT: int = 10_000
 
 
 class BountyStatus(StrEnum):
@@ -26,6 +30,13 @@ BOUNTY_TRANSITIONS: dict[BountyStatus, set[BountyStatus]] = {
 }
 
 
+class BountyAssignInput(BaseModel):
+    hunter_id: int = Field(
+        description="ID do desenvolvedor a ser atribuído à bounty",
+        examples=[2],
+    )
+
+
 class BountyCreate(BaseModel):
     project_id: int = Field(
         description="ID do projeto ao qual o bounty pertence",
@@ -40,14 +51,17 @@ class BountyCreate(BaseModel):
         description="URL canônica da issue no GitHub",
         examples=["https://github.com/GermanoDevelopment/greenfield/issues/42"],
     )
-    points: int = Field(
+    points: int | None = Field(
+        default=None,
         gt=0,
-        default=100,
+        le=MAX_BOUNTY_POINTS,
         description="Pontuação da issue (100 pontos = $1 USDC = 1.000.000 micro-USDC)",
         examples=[500],
     )
     amount_usdc: int | None = Field(
         default=None,
+        gt=0,
+        le=MAX_BOUNTY_USDC,
         description="Valor em micro-USDC (se omitido, calcula automaticamente: points * 10_000)",
         examples=[5000000],
     )
@@ -75,6 +89,31 @@ class BountyCreate(BaseModel):
     @classmethod
     def escrow_pda_is_valid(cls, v: str | None) -> str | None:
         return validate_solana_wallet(v) if v is not None else None
+
+    @model_validator(mode="after")
+    def validate_amount_and_points(self) -> "BountyCreate":
+        if self.points is None and self.amount_usdc is None:
+            self.points = 100
+            self.amount_usdc = 1_000_000
+        elif self.points is not None and self.amount_usdc is not None:
+            expected_amount = self.points * MICRO_USDC_PER_POINT
+            if self.amount_usdc != expected_amount:
+                raise ValueError(
+                    f"amount_usdc ({self.amount_usdc}) does not match points ({self.points}). "
+                    f"Expected {expected_amount} micro-USDC (100 pts = 1,000,000 micro-USDC)."
+                )
+        elif self.points is not None:
+            self.amount_usdc = self.points * MICRO_USDC_PER_POINT
+        elif self.amount_usdc is not None:
+            if self.amount_usdc % MICRO_USDC_PER_POINT != 0:
+                raise ValueError(
+                    f"amount_usdc ({self.amount_usdc}) must be an exact multiple of {MICRO_USDC_PER_POINT} micro-USDC (1 point)."
+                )
+            self.points = self.amount_usdc // MICRO_USDC_PER_POINT
+            if self.points > MAX_BOUNTY_POINTS:
+                raise ValueError(f"points ({self.points}) exceeds maximum allowed ({MAX_BOUNTY_POINTS}).")
+
+        return self
 
 
 class BountySubmit(BaseModel):
@@ -119,6 +158,7 @@ class BountyApplicantOut(BaseModel):
 class BountyRewardUpdate(BaseModel):
     points: int = Field(
         gt=0,
+        le=MAX_BOUNTY_POINTS,
         description="Nova pontuação da issue (Invariante 2: alterável apenas em status OPEN)",
         examples=[1000],
     )

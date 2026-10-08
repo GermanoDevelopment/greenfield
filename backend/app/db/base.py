@@ -105,6 +105,9 @@ class BountyApplicantModel(Base, TimestampMixin):
 
 class BountyModel(Base, TimestampMixin):
     __tablename__ = "bounties"
+    __table_args__ = (
+        UniqueConstraint("issue_url", name="uq_bounty_issue_url"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     project_id: Mapped[int] = mapped_column(

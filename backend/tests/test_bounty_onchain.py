@@ -186,10 +186,12 @@ async def test_create_bounty_rolls_back_on_chain_rejection(
 
 
 async def test_assign_bounty_calls_assign_developer_onchain(
-    client, issuer_headers, hunter_wallet_headers, onchain_bounty, mock_onchain_calls
+    client, issuer_headers, hunter_wallet_headers, wallet_hunter, onchain_bounty, mock_onchain_calls
 ):
     resp = await client.post(
-        f"/api/v1/bounties/{onchain_bounty['id']}/assign", headers=hunter_wallet_headers
+        f"/api/v1/bounties/{onchain_bounty['id']}/assign",
+        json={"hunter_id": wallet_hunter["id"]},
+        headers=issuer_headers,
     )
     assert resp.status_code == 200
     assert len(mock_onchain_calls) == 1
@@ -202,13 +204,18 @@ async def test_complete_bounty_calls_approve_claim_onchain(
     client,
     issuer_headers,
     hunter_wallet_headers,
+    wallet_hunter,
     onchain_bounty,
     mock_onchain_calls,
     mock_github_pr_merged,
 ):
     mock_github_pr_merged["author_id"] = 222
     bounty_id = onchain_bounty["id"]
-    await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_wallet_headers)
+    await client.post(
+        f"/api/v1/bounties/{bounty_id}/assign",
+        json={"hunter_id": wallet_hunter["id"]},
+        headers=issuer_headers,
+    )
     await client.post(
         f"/api/v1/bounties/{bounty_id}/submit",
         json={"pr_url": "https://github.com/GermanoDevelopment/greenfield/pull/1"},
@@ -228,6 +235,7 @@ async def test_record_claim_requires_onchain_confirmation(
     client,
     issuer_headers,
     hunter_wallet_headers,
+    wallet_hunter,
     onchain_bounty,
     mock_onchain_calls,
     mock_github_pr_merged,
@@ -235,7 +243,11 @@ async def test_record_claim_requires_onchain_confirmation(
 ):
     mock_github_pr_merged["author_id"] = 222
     bounty_id = onchain_bounty["id"]
-    await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_wallet_headers)
+    await client.post(
+        f"/api/v1/bounties/{bounty_id}/assign",
+        json={"hunter_id": wallet_hunter["id"]},
+        headers=issuer_headers,
+    )
     await client.post(
         f"/api/v1/bounties/{bounty_id}/submit",
         json={"pr_url": "https://github.com/GermanoDevelopment/greenfield/pull/1"},
@@ -275,13 +287,18 @@ async def test_record_claim_forbidden_for_non_hunter(
     client,
     issuer_headers,
     hunter_wallet_headers,
+    wallet_hunter,
     onchain_bounty,
     mock_onchain_calls,
     mock_github_pr_merged,
 ):
     mock_github_pr_merged["author_id"] = 222
     bounty_id = onchain_bounty["id"]
-    await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_wallet_headers)
+    await client.post(
+        f"/api/v1/bounties/{bounty_id}/assign",
+        json={"hunter_id": wallet_hunter["id"]},
+        headers=issuer_headers,
+    )
     await client.post(
         f"/api/v1/bounties/{bounty_id}/submit",
         json={"pr_url": "https://github.com/GermanoDevelopment/greenfield/pull/1"},
