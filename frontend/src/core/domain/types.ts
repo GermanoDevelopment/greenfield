@@ -27,15 +27,18 @@ export type UserRole =
   | 'MAINTAINER'
   | 'CONTRIBUTOR';
 
-export const POINTS_PER_USDC = 100;
-
-export function pointsToUsdc(points: number): number {
-  return points / POINTS_PER_USDC;
-}
-
-export function usdcToPoints(usdc: number): number {
-  return usdc * POINTS_PER_USDC;
-}
+export {
+  POINTS_PER_USDC,
+  MICRO_USDC_PER_USDC,
+  MICRO_USDC_PER_POINT,
+  pointsToUsdc,
+  usdcToPoints,
+  microUsdcToUsdc,
+  usdcToMicroUsdc,
+  pointsToMicroUsdc,
+  formatUsdc,
+  formatMicroUsdc,
+} from '../../lib/currency';
 
 export interface User {
   id: string;
