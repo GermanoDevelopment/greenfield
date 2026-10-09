@@ -3,12 +3,14 @@ import { useApp } from '../context/AppContext';
 import MaintainerDashboard from '../components/organisms/MaintainerDashboard';
 import DeveloperDashboard from '../components/organisms/DeveloperDashboard';
 import { Shield, Code2 } from 'lucide-react';
+import { isMaintainerRole } from '../../core/domain/roles';
 
 export const DashboardPage: React.FC = () => {
   const { currentUser } = useApp();
   const [viewOverride, setViewOverride] = useState<'maintainer' | 'developer' | null>(null);
 
-  const activeView = viewOverride || (currentUser.role === 'maintainer' ? 'maintainer' : 'developer');
+  const isMaintainer = isMaintainerRole(currentUser.role);
+  const activeView = viewOverride || (isMaintainer ? 'maintainer' : 'developer');
 
   return (
     <div className="flex flex-col gap-6">
@@ -20,7 +22,7 @@ export const DashboardPage: React.FC = () => {
           </h1>
           <p className="text-xs text-[#889887] mt-1">
             Conectado como <strong className="text-[#28B110]">@{currentUser.github_username}</strong>{' '}
-            ({currentUser.role === 'maintainer' ? 'Mantenedor do Repositório' : 'Desenvolvedor Contribuidor'}).
+            ({isMaintainer ? 'Mantenedor do Repositório' : 'Desenvolvedor Contribuidor'}).
           </p>
         </div>
 
