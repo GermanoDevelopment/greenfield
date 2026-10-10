@@ -89,6 +89,7 @@ The `.env.example` files work out of the box.
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`: GitHub OAuth.
 - `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **If empty, any payload is accepted.**
 - `GITHUB_TOKEN`: token for GitHub API calls when the user has none.
+- `ENABLE_DEV_LOGIN` (default `false`): enables `POST /auth/dev-login`, which logs in as any username with no password, for local demos only. Even when `true`, it stays off while GitHub OAuth is configured. Never enable it on a shared deployment.
 - `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login.
 - `SOLANA_RPC_URL`: defaults to devnet.
 - `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY`: set both to enable on-chain escrow (see [Payouts](#payouts)).
