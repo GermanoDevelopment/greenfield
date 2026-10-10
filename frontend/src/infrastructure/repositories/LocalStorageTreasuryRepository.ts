@@ -16,13 +16,10 @@ export class LocalStorageTreasuryRepository implements ITreasuryRepository {
           ? b.amount_usdc / 1_000_000
           : (b.points || 0) / 100;
 
-        if (b.status === 'COMPLETED') {
+        if (b.status === 'CLAIMED') {
           claimed += usdc;
-        } else if (
-          b.status === 'OPEN' ||
-          b.status === 'ASSIGNED' ||
-          b.status === 'SUBMITTED'
-        ) {
+        } else if (b.status !== 'CANCELLED') {
+          // Still owed: not started, in progress, or merged but not paid yet.
           reserved += usdc;
         }
       }

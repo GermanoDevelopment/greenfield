@@ -10,8 +10,12 @@ class BountyStatus(StrEnum):
     OPEN = "OPEN"
     ASSIGNED = "ASSIGNED"
     SUBMITTED = "SUBMITTED"
-    COMPLETED = "COMPLETED"
+    # Merge verified, reward unlocked; no confirmed payment yet.
+    CLAIMABLE = "CLAIMABLE"
+    # Payment confirmed on-chain (tx_signature set).
     CLAIMED = "CLAIMED"
+    # Custodial payout attempted and failed; claim_error says why.
+    CLAIM_FAILED = "CLAIM_FAILED"
     CANCELLED = "CANCELLED"
 
 
@@ -19,8 +23,10 @@ class BountyStatus(StrEnum):
 BOUNTY_TRANSITIONS: dict[BountyStatus, set[BountyStatus]] = {
     BountyStatus.OPEN: {BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
     BountyStatus.ASSIGNED: {BountyStatus.SUBMITTED, BountyStatus.CANCELLED},
-    BountyStatus.SUBMITTED: {BountyStatus.COMPLETED, BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
-    BountyStatus.COMPLETED: {BountyStatus.CLAIMED},
+    BountyStatus.SUBMITTED: {BountyStatus.CLAIMABLE, BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
+    BountyStatus.CLAIMABLE: {BountyStatus.CLAIMED, BountyStatus.CLAIM_FAILED},
+    # A failed payout goes back to CLAIMABLE to be retried (#24).
+    BountyStatus.CLAIM_FAILED: {BountyStatus.CLAIMABLE},
     BountyStatus.CLAIMED: set(),
     BountyStatus.CANCELLED: set(),
 }
@@ -166,7 +172,10 @@ class BountyOut(BaseModel):
         description="Valor em micro-USDC (1 USDC = 1.000.000)", examples=[5000000]
     )
     status: BountyStatus = Field(
-        description="Status atual do bounty (OPEN, ASSIGNED, SUBMITTED, COMPLETED, CLAIMED)",
+        description=(
+            "Status atual do bounty (OPEN, ASSIGNED, SUBMITTED, CLAIMABLE, CLAIMED, "
+            "CLAIM_FAILED, CANCELLED)"
+        ),
         examples=[BountyStatus.OPEN],
     )
     escrow_pda: str | None = Field(default=None, description="Endereço PDA do escrow on-chain")
@@ -181,6 +190,9 @@ class BountyOut(BaseModel):
     )
     claimed_at: datetime | None = Field(
         default=None, description="Data e hora da liquidação on-chain"
+    )
+    claim_error: str | None = Field(
+        default=None, description="Motivo da falha do pagamento (status CLAIM_FAILED)"
     )
     created_at: datetime = Field(description="Data de criação da bounty")
     updated_at: datetime = Field(description="Data da última modificação")

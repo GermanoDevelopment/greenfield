@@ -121,11 +121,19 @@ export interface ApiBountyOut {
   issue_body: string | null;
   amount_usdc: number;
   points: number;
-  status: 'OPEN' | 'ASSIGNED' | 'SUBMITTED' | 'COMPLETED' | 'CANCELLED';
+  status:
+    | 'OPEN'
+    | 'ASSIGNED'
+    | 'SUBMITTED'
+    | 'CLAIMABLE'
+    | 'CLAIMED'
+    | 'CLAIM_FAILED'
+    | 'CANCELLED';
   escrow_pda: string | null;
   pr_url: string | null;
   tx_signature: string | null;
   claimed_at: string | null;
+  claim_error?: string | null;
   created_at: string;
   issuer?: ApiUserOut;
   hunter?: ApiUserOut;

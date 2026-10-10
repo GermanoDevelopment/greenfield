@@ -98,7 +98,8 @@ async def test_full_bounty_lifecycle(
     # issuer completes (PR merged mocked as True)
     resp = await client.post(f"/api/v1/bounties/{bounty_id}/complete", headers=auth_headers)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "COMPLETED"
+    # No wallet linked: merge verified, payment still pending.
+    assert resp.json()["status"] == "CLAIMABLE"
 
 
 async def test_complete_requires_merged_pr(
@@ -138,7 +139,7 @@ async def test_invalid_transition_cancelled_to_assigned(client, auth_headers, bo
     assert resp.status_code in (401, 409)
 
 
-async def test_completed_bounty_is_terminal(
+async def test_claimable_bounty_cannot_be_cancelled(
     client, auth_headers, hunter_headers, bounty, mock_github_pr_merged
 ):
     bounty_id = bounty["id"]
@@ -159,7 +160,7 @@ async def test_list_bounties_filter_status(client, auth_headers, bounty):
     assert resp.status_code == 200
     assert len(resp.json()) == 1
 
-    resp = await client.get("/api/v1/bounties?status=COMPLETED")
+    resp = await client.get("/api/v1/bounties?status=CLAIMED")
     assert resp.json() == []
 
 

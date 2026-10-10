@@ -118,9 +118,26 @@ Limits are kept in memory per process, so each worker or replica counts separate
 
 ## How it works
 
-A bounty moves `OPEN → ASSIGNED → SUBMITTED → COMPLETED`. It can be `CANCELLED` from any non-final state, and a rejected PR sends it back from `SUBMITTED` to `ASSIGNED`. `COMPLETED` and `CANCELLED` are final.
+```mermaid
+stateDiagram-v2
+    [*] --> OPEN
+    OPEN --> ASSIGNED
+    ASSIGNED --> SUBMITTED: PR submitted
+    SUBMITTED --> ASSIGNED: PR rejected
+    SUBMITTED --> CLAIMABLE: merge verified
+    CLAIMABLE --> CLAIMED: payment confirmed on-chain
+    CLAIMABLE --> CLAIM_FAILED: custodial payout failed
+    CLAIM_FAILED --> CLAIMABLE: retry
+    OPEN --> CANCELLED
+    ASSIGNED --> CANCELLED
+    SUBMITTED --> CANCELLED
+    CLAIMED --> [*]
+    CANCELLED --> [*]
+```
 
-It completes when the GitHub webhook reports a merged PR, or when the issuer or an admin calls `POST /bounties/{id}/complete`. Either way the backend verifies the merge first.
+A verified merge moves the bounty to `CLAIMABLE`: the reward is unlocked but not paid yet. It only becomes `CLAIMED` once a payment transaction is confirmed on-chain, and its signature is in `tx_signature`. A failed custodial payout moves it to `CLAIM_FAILED`, with the reason in `claim_error`. `CLAIMED` and `CANCELLED` are final, and a bounty can no longer be cancelled once its merge is verified.
+
+The merge is verified when the GitHub webhook reports a merged PR, or when the issuer or an admin calls `POST /bounties/{id}/complete`. Either way the backend checks the PR on GitHub first.
 
 Rules:
 
@@ -136,7 +153,15 @@ The mode depends on configuration.
 
 **On-chain escrow.** Active when both `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY` are set. The Anchor program holds the funds, and the backend runs each step as the bounty advances: create, assign (when the accepted contributor has a wallet), approve on merge, cancel. The contributor then signs `claim` from their wallet in the app. If an on-chain step fails, the database change is rolled back and the API returns an error.
 
-**Custodial fallback.** The default when either variable is missing. On merge the backend sends SPL USDC from a treasury key straight to the contributor's wallet. The key comes from `SOLANA_AUTHORITY_SECRET_KEY`, else `SOLANA_TREASURY_KEYPAIR_PATH`, else `SOLANA_TREASURY_PRIVATE_KEY`; with none of them, the backend uses an ephemeral keypair with no funds. If the contributor has no linked wallet, or the transfer fails, the bounty still completes with no `tx_signature` and no error is reported.
+In escrow mode the bounty is `CLAIMABLE` after `approve_claim`, and becomes `CLAIMED` when the contributor reports the claim (`POST /bounties/{id}/claimed`) and the backend finds the on-chain bounty account in the claimed state.
+
+**Custodial fallback.** The default when either variable is missing. On merge the backend records `CLAIMABLE`, then sends SPL USDC from a treasury key straight to the contributor's wallet and waits for confirmation:
+
+- Confirmed: `CLAIMED` with `tx_signature`.
+- Any error (RPC rejection, missing funds, confirmation timeout): `CLAIM_FAILED` with `claim_error`, also logged.
+- No wallet linked, or no treasury key configured: no attempt, the bounty stays `CLAIMABLE`.
+
+The key comes from `SOLANA_AUTHORITY_SECRET_KEY`, else `SOLANA_TREASURY_KEYPAIR_PATH`, else `SOLANA_TREASURY_PRIVATE_KEY`. With none of them, custodial payouts are off; no key is ever generated. In this mode `POST /bounties/{id}/claimed` is refused, since the backend records its own transactions.
 
 ## Commands
 
@@ -195,7 +220,8 @@ greenfield/
 - **Frontend shows `Failed to fetch` or a CORS error:** check `VITE_API_URL` and that `curl localhost:8080/api/v1/health` works.
 - **`VITE_*` change has no effect:** restart `npm run dev`. In Docker, rebuild with `--build`.
 - **`/auth/github/login` fails:** the GitHub OAuth variables are empty. Use email and password in development.
-- **Bounty completed with no `tx_signature` (custodial mode):** the contributor has no wallet linked (`PATCH /users/me`), or the transfer failed silently. See [Payouts](#payouts).
+- **Bounty stuck in `CLAIMABLE` (custodial mode):** the contributor has no wallet linked (`PATCH /users/me`), or no treasury key is configured. See [Payouts](#payouts).
+- **Bounty in `CLAIM_FAILED`:** the payout was attempted and failed; `claim_error` on the bounty says why (for example `AccountNotFound` when the treasury has no funds).
 - **`On-chain transaction failed` (escrow mode):** the Solana step was rejected, so the change was rolled back. Check `SOLANA_PROGRAM_ID`, the authority key balance and `SOLANA_RPC_URL`.
 - **Webhook returns `403 Invalid signature`:** `GITHUB_WEBHOOK_SECRET` is empty, or the secret in GitHub differs from it.
 
