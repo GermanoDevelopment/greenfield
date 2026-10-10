@@ -141,7 +141,7 @@ async def test_admin_stats_and_permissions(client, admin_headers, hunter_headers
 
 
 async def test_admin_review_submission_reject_and_approve(
-    client, admin_headers, hunter_headers, open_bounty_fixture
+    client, admin_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged
 ):
     bounty_id = open_bounty_fixture["id"]
 
@@ -172,14 +172,33 @@ async def test_admin_review_submission_reject_and_approve(
         headers=hunter_headers,
     )
 
-    # 3. Admin approves with force_payout
-    with patch(
-        "app.services.solana_service.execute_bounty_payout",
-        AsyncMock(return_value="tx_sig_admin_approved_123"),
-    ):
-        approve_resp = await client.post(
+    # 3. Admin cannot approve while the PR is not merged, even with force_payout
+    mock_github_pr_merged["result"] = False
+    payout = AsyncMock(return_value="tx_sig_admin_approved_123")
+    with patch("app.services.solana_service.execute_bounty_payout", payout):
+        blocked = await client.post(
             f"/api/v1/admin/bounties/{bounty_id}/review",
             json={"action": "APPROVE", "force_payout": True},
+            headers=admin_headers,
+        )
+        assert blocked.status_code == 422
+        payout.assert_not_called()
+
+        # 4. Unverifiable PR status also blocks release
+        mock_github_pr_merged["result"] = None
+        blocked = await client.post(
+            f"/api/v1/admin/bounties/{bounty_id}/review",
+            json={"action": "APPROVE"},
+            headers=admin_headers,
+        )
+        assert blocked.status_code == 409
+        payout.assert_not_called()
+
+        # 5. Once merged, approval completes and pays out
+        mock_github_pr_merged["result"] = True
+        approve_resp = await client.post(
+            f"/api/v1/admin/bounties/{bounty_id}/review",
+            json={"action": "APPROVE"},
             headers=admin_headers,
         )
         assert approve_resp.status_code == 200

@@ -87,7 +87,7 @@ The `.env.example` files work out of the box.
 - `JWT_SECRET`: **change in production**. `JWT_EXPIRATION_MINUTES` defaults to `1440`.
 - `CORS_ORIGINS`: allowed frontend origins. Defaults to ports `5173` and `3000`.
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`: GitHub OAuth.
-- `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **If empty, any payload is accepted.**
+- `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **Required:** if empty, every webhook is rejected with `403`.
 - `GITHUB_TOKEN`: token for GitHub API calls when the user has none.
 - `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login.
 - `SOLANA_RPC_URL`: defaults to devnet.
@@ -158,7 +158,7 @@ Everything lives under `/api/v1`:
 
 Route groups: `auth`, `users`, `projects`, `repositories`, `bounties`, `admin`, `webhooks`. Bounty routes are listed in [`backend/README.md`](backend/README.md).
 
-**GitHub webhook.** To complete bounties on merge, point a repository webhook at `POST /api/v1/webhooks/github` with content type `application/json` and the **Pull requests** and **Issues** events. Use the same secret in GitHub and in `GITHUB_WEBHOOK_SECRET`.
+**GitHub webhook.** To complete bounties on merge, point a repository webhook at `POST /api/v1/webhooks/github` with content type `application/json` and the **Pull requests** and **Issues** events. Use the same secret in GitHub and in `GITHUB_WEBHOOK_SECRET`; unsigned or wrongly signed deliveries are rejected with `403`, and so is every delivery while the secret is unset. Admin approval (`POST /admin/bounties/{id}/review`) also requires the PR to be merged on GitHub; there is no override.
 
 ## Repository layout
 
@@ -181,7 +181,7 @@ greenfield/
 - **`/auth/github/login` fails:** the GitHub OAuth variables are empty. Use email and password in development.
 - **Bounty completed with no `tx_signature` (custodial mode):** the contributor has no wallet linked (`PATCH /users/me`), or the transfer failed silently. See [Payouts](#payouts).
 - **`On-chain transaction failed` (escrow mode):** the Solana step was rejected, so the change was rolled back. Check `SOLANA_PROGRAM_ID`, the authority key balance and `SOLANA_RPC_URL`.
-- **Webhook returns `403 Invalid signature`:** the secret in GitHub differs from `GITHUB_WEBHOOK_SECRET`.
+- **Webhook returns `403 Invalid signature`:** `GITHUB_WEBHOOK_SECRET` is empty, or the secret in GitHub differs from it.
 
 Full local reset:
 
