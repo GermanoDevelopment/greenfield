@@ -41,17 +41,48 @@ def mock_github_issue_open(monkeypatch):
     monkeypatch.setattr(github_service, "is_issue_open", fake_issue_open)
 
 
+HUNTER_GITHUB_ID = 789
+
+
 @pytest.fixture
 def mock_github_pr_merged(monkeypatch):
+    """GitHub fake para `fetch_pull_request`.
+
+    Por padrão o PR é válido para a bounty: mergeado, alvo = repositório da URL,
+    autor = hunter `bob` e corpo citando a issue #1. Mude as chaves no teste:
+    `result` (True/False mergeado, None = GitHub inacessível), `author_id`,
+    `body`, `title`, `base_repo` e `state`.
+    """
     from app.services import github_service
 
-    merged = {"result": True}
+    pr = {
+        "result": True,
+        "author_id": HUNTER_GITHUB_ID,
+        "body": "Closes #1",
+        "title": "Fix the bug",
+        "base_repo": None,
+        "state": None,
+    }
 
-    async def fake_pr_merged(pr_url: str) -> bool | None:
-        return merged["result"]
+    async def fake_fetch_pull_request(pr_url: str) -> dict | None:
+        if pr["result"] is None:
+            return None
+        owner, repo, number = github_service.parse_pr_url(pr_url)
+        merged = bool(pr["result"])
+        return {
+            "html_url": f"https://github.com/{owner}/{repo}/pull/{number}",
+            "number": number,
+            "state": pr["state"] or ("closed" if merged else "open"),
+            "merged": merged,
+            "author_id": pr["author_id"],
+            "author_login": "bob",
+            "base_repo": pr["base_repo"] or f"{owner}/{repo}",
+            "title": pr["title"],
+            "body": pr["body"],
+        }
 
-    monkeypatch.setattr(github_service, "is_pr_merged", fake_pr_merged)
-    return merged
+    monkeypatch.setattr(github_service, "fetch_pull_request", fake_fetch_pull_request)
+    return pr
 
 
 @pytest.fixture
