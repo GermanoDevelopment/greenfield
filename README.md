@@ -98,7 +98,7 @@ The `.env.example` files work out of the box.
 - `CORS_ORIGINS`: allowed frontend origins. Defaults to ports `5173` and `3000`.
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`: GitHub OAuth.
 - `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **Required:** if empty, every webhook is rejected with `403`.
-- `GITHUB_TOKEN`: token for GitHub API calls when the user has none.
+- `GITHUB_TOKEN`: token for GitHub API calls when the user has none. **Set it outside local dev:** submit and complete query the GitHub API, and unauthenticated calls are capped at 60 per hour per IP, after which they fail with `409 Could not verify the pull request on GitHub`.
 - `ENABLE_DEV_LOGIN` (default `false`): enables `POST /auth/dev-login`, which logs in as any username with no password, for local demos only. Even when `true`, it stays off while GitHub OAuth is configured. Never enable it on a shared deployment.
 - `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login. Empty by default.
 - `SOLANA_RPC_URL`: defaults to devnet.
@@ -125,6 +125,7 @@ It completes when the GitHub webhook reports a merged PR, or when the issuer or 
 Rules:
 
 - **Merge required.** If the backend cannot verify the merge, the bounty does not complete.
+- **PR bound to the bounty.** On submit and again on merge, the PR must target the issue's repository, be authored by the assigned hunter (matched by GitHub account id, so the hunter needs a linked GitHub account) and reference the issue in its title or body (`#N`, `owner/repo#N` or the issue URL). A PR closed without merge is refused, and one PR can back only one bounty.
 - **Frozen reward.** The reward can only change while `OPEN`.
 - **One payout per issue.** `complete` is only valid from `SUBMITTED`.
 - **Fixed conversion.** `100 points = $1 USDC = 1,000,000 micro-USDC`.
@@ -173,7 +174,7 @@ Everything lives under `/api/v1`:
 
 Route groups: `auth`, `users`, `projects`, `repositories`, `bounties`, `admin`, `webhooks`. Bounty routes are listed in [`backend/README.md`](backend/README.md).
 
-**GitHub webhook.** To complete bounties on merge, point a repository webhook at `POST /api/v1/webhooks/github` with content type `application/json` and the **Pull requests** and **Issues** events. Use the same secret in GitHub and in `GITHUB_WEBHOOK_SECRET`; unsigned or wrongly signed deliveries are rejected with `403`, and so is every delivery while the secret is unset. Admin approval (`POST /admin/bounties/{id}/review`) also requires the PR to be merged on GitHub; there is no override.
+**GitHub webhook.** To complete bounties on merge, point a repository webhook at `POST /api/v1/webhooks/github` with content type `application/json` and the **Pull requests** and **Issues** events. Use the same secret in GitHub and in `GITHUB_WEBHOOK_SECRET`; unsigned or wrongly signed deliveries are rejected with `403`, and so is every delivery while the secret is unset. Admin approval (`POST /admin/bounties/{id}/review`) also requires the PR to be merged on GitHub; there is no override. Deliveries are recorded by `X-GitHub-Delivery`, so a redelivered event is ignored. A merge whose PR no longer meets the binding rules returns `200` with `not completed: <reason>` and leaves the bounty `SUBMITTED`.
 
 ## Repository layout
 

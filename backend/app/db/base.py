@@ -183,3 +183,15 @@ class TrackedIssueModel(Base, TimestampMixin):
     project: Mapped[ProjectModel] = relationship(back_populates="tracked_issues")
     repository: Mapped[RepositoryModel] = relationship(back_populates="tracked_issues")
     bounty: Mapped[BountyModel | None] = relationship(back_populates="tracked_issue")
+
+
+class WebhookDeliveryModel(Base):
+    """Entregas do webhook do GitHub já processadas (idempotência por X-GitHub-Delivery)."""
+
+    __tablename__ = "webhook_deliveries"
+
+    delivery_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

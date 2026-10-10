@@ -94,8 +94,8 @@ async def is_issue_open(issue_url: str) -> bool | None:
     return resp.json().get("state") == "open"
 
 
-async def is_pr_merged(pr_url: str) -> bool | None:
-    """Return True if the PR is merged, False otherwise, None if it cannot be checked."""
+async def fetch_pull_request(pr_url: str) -> dict[str, Any] | None:
+    """Dados do PR usados nas regras de vínculo PR→bounty; None se não der para consultar."""
     parsed = parse_pr_url(pr_url)
     if parsed is None:
         return None
@@ -106,7 +106,20 @@ async def is_pr_merged(pr_url: str) -> bool | None:
         )
     if resp.status_code != 200:
         return None
-    return resp.json().get("merged") is True
+    data = resp.json()
+    user = data.get("user") or {}
+    base_repo = (data.get("base") or {}).get("repo") or {}
+    return {
+        "html_url": data.get("html_url"),
+        "number": data.get("number"),
+        "state": data.get("state"),
+        "merged": data.get("merged") is True,
+        "author_id": user.get("id"),
+        "author_login": user.get("login"),
+        "base_repo": base_repo.get("full_name"),
+        "title": data.get("title") or "",
+        "body": data.get("body") or "",
+    }
 
 
 async def build_login_url(state: str | None = None) -> str:

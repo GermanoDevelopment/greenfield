@@ -27,17 +27,6 @@ def mock_escrow_funded(monkeypatch):
 
 
 @pytest.fixture
-def mock_github_pr_merged(monkeypatch):
-    merged = {"result": True}
-
-    async def fake_pr_merged(pr_url: str) -> bool | None:
-        return merged["result"]
-
-    monkeypatch.setattr(github_service, "is_pr_merged", fake_pr_merged)
-    return merged
-
-
-@pytest.fixture
 async def project(client, auth_headers):
     resp = await client.post(
         "/api/v1/projects",

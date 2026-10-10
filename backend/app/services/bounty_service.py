@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -316,13 +317,64 @@ async def assign_bounty(
     return bounty
 
 
+def _references_issue(text: str, owner: str, repo: str, number: int) -> bool:
+    """True se o texto cita a issue: `#N`, `owner/repo#N` ou a URL da issue."""
+    patterns = (
+        rf"(?<![\w/#])#{number}\b",
+        rf"(?<![\w.-]){re.escape(owner)}/{re.escape(repo)}#{number}\b",
+        rf"github\.com/{re.escape(owner)}/{re.escape(repo)}/issues/{number}\b",
+    )
+    return any(re.search(p, text, re.IGNORECASE) for p in patterns)
+
+
+def check_pr_binding(bounty: BountyModel, hunter: UserModel, pr: dict) -> None:
+    """Regras de vínculo PR→bounty (#28): mesmo repositório da issue, autor = hunter
+    (pelo id do GitHub, estável a renomeações) e o PR cita a issue."""
+    issue = github_service.parse_issue_url(bounty.issue_url)
+    if issue is None:
+        raise ValidationError("Bounty issue URL is not a GitHub issue")
+    owner, repo, number = issue
+
+    if (pr.get("base_repo") or "").lower() != f"{owner}/{repo}".lower():
+        raise ValidationError(f"Pull request must target {owner}/{repo}")
+    if not hunter.github_id or hunter.github_id <= 0:
+        raise ValidationError("Link your GitHub account before submitting a pull request")
+    if pr.get("author_id") != hunter.github_id:
+        raise ValidationError("Pull request must be authored by the assigned hunter")
+    text = f"{pr.get('title', '')}\n{pr.get('body', '')}"
+    if not _references_issue(text, owner, repo, number):
+        raise ValidationError(f"Pull request must reference issue #{number}")
+
+
+async def _fetch_pr_or_conflict(pr_url: str) -> dict:
+    pr = await github_service.fetch_pull_request(pr_url)
+    if pr is None:
+        raise ConflictError("Could not verify the pull request on GitHub")
+    return pr
+
+
 async def submit_bounty(
     session: AsyncSession, bounty: BountyModel, hunter: UserModel, pr_url: str
 ) -> BountyModel:
     if bounty.hunter_id != hunter.id:
         raise ForbiddenError("Only the assigned hunter can submit a PR")
+
+    pr = await _fetch_pr_or_conflict(pr_url)
+    check_pr_binding(bounty, hunter, pr)
+    if pr.get("state") == "closed" and not pr.get("merged"):
+        raise ValidationError("Pull request was closed without being merged")
+
+    canonical_url = pr.get("html_url") or pr_url
+    taken = await session.execute(
+        select(BountyModel.id).where(
+            BountyModel.pr_url == canonical_url, BountyModel.id != bounty.id
+        )
+    )
+    if taken.scalar_one_or_none() is not None:
+        raise ConflictError("This pull request is already linked to another bounty")
+
     _transition(bounty, BountyStatus.SUBMITTED)
-    bounty.pr_url = str(pr_url)
+    bounty.pr_url = canonical_url
     await session.commit()
     await session.refresh(bounty)
     return bounty
@@ -336,10 +388,13 @@ async def complete_bounty(
     if not bounty.pr_url:
         raise ConflictError("Bounty has no PR submitted")
 
-    merged = await github_service.is_pr_merged(bounty.pr_url)
-    if merged is None:
-        raise ConflictError("Could not verify PR status on GitHub")
-    if not merged:
+    pr = await _fetch_pr_or_conflict(bounty.pr_url)
+    # Re-check on merge: the PR may have been edited or retargeted since submission.
+    hunter = await session.get(UserModel, bounty.hunter_id) if bounty.hunter_id else None
+    if hunter is None:
+        raise ConflictError("Bounty has no assigned hunter")
+    check_pr_binding(bounty, hunter, pr)
+    if not pr.get("merged"):
         raise ValidationError("Pull request is not merged yet")
 
     _transition(bounty, BountyStatus.COMPLETED)
@@ -492,8 +547,7 @@ async def record_incoming_github_issue(
     import json
 
     stmt = select(RepositoryModel).where(
-        (RepositoryModel.github_repo == repo_full_name)
-        | (RepositoryModel.github_name == repo_full_name.split("/")[-1])
+        func.lower(RepositoryModel.github_repo) == repo_full_name.lower()
     )
     repo = (await session.execute(stmt)).scalars().first()
     if not repo:

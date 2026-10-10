@@ -206,6 +206,7 @@ async def test_complete_bounty_calls_approve_claim_onchain(
     mock_onchain_calls,
     mock_github_pr_merged,
 ):
+    mock_github_pr_merged["author_id"] = 222
     bounty_id = onchain_bounty["id"]
     await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_wallet_headers)
     await client.post(
@@ -232,6 +233,7 @@ async def test_record_claim_requires_onchain_confirmation(
     mock_github_pr_merged,
     monkeypatch,
 ):
+    mock_github_pr_merged["author_id"] = 222
     bounty_id = onchain_bounty["id"]
     await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_wallet_headers)
     await client.post(
@@ -277,6 +279,7 @@ async def test_record_claim_forbidden_for_non_hunter(
     mock_onchain_calls,
     mock_github_pr_merged,
 ):
+    mock_github_pr_merged["author_id"] = 222
     bounty_id = onchain_bounty["id"]
     await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_wallet_headers)
     await client.post(
