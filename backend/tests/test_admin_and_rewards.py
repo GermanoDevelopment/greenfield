@@ -186,4 +186,3 @@ async def test_admin_review_submission_reject_and_approve(
         approved_data = approve_resp.json()
         assert approved_data["status"] == "COMPLETED"
         assert approved_data["tx_signature"] == "tx_sig_admin_approved_123"
-

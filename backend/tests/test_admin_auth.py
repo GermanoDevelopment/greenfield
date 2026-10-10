@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from app.services.admin_seed import seed_default_admins
 
