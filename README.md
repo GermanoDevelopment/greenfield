@@ -72,10 +72,19 @@ Open http://localhost:5173. The default `DATABASE_URL` in `.env.example` works a
 ### First login
 
 - **Email and password:** sign up in the app's login modal, or `POST /api/v1/auth/register`.
-- **Seeded dev admins:** created on every backend boot with the password `admin123` (see `backend/app/services/admin_seed.py`).
 - **GitHub OAuth:** needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
 
-> ⚠️ The seeded admins are for development only. Remove them or change the passwords, and set your own `JWT_SECRET`, before any shared deployment.
+New accounts are always `CONTRIBUTOR`. No admin exists on a fresh instance; an operator provisions one:
+
+- **GitHub admins:** list their usernames in `ADMIN_GITHUB_USERNAMES`. They become `ADMIN` on OAuth login.
+- **Email and password admins:** run the CLI. It creates the user, or promotes an existing one, without exposing an HTTP route.
+
+```bash
+cd backend
+GREENFIELD_ADMIN_PASSWORD='<at least 12 chars>' uv run python -m app.cli create-admin --email ops@example.com --username ops
+```
+
+Without `GREENFIELD_ADMIN_PASSWORD` the CLI prompts for the password. Migration `000005` demotes the old `@greenfield.com` seed admins that still have the password `admin123` and disables their password login, so re-provision them with the CLI.
 
 ## Configuration
 
@@ -89,7 +98,7 @@ The `.env.example` files work out of the box.
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`: GitHub OAuth.
 - `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **Required:** if empty, every webhook is rejected with `403`.
 - `GITHUB_TOKEN`: token for GitHub API calls when the user has none.
-- `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login.
+- `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login. Empty by default.
 - `SOLANA_RPC_URL`: defaults to devnet.
 - `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY`: set both to enable on-chain escrow (see [Payouts](#payouts)).
 - `SOLANA_TREASURY_KEYPAIR_PATH` or `SOLANA_TREASURY_PRIVATE_KEY` (base58): treasury key for the custodial fallback.

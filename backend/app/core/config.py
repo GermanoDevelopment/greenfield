@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     solana_treasury_private_key: str | None = None
     solana_authority_secret_key: str = ""
 
-    admin_github_usernames: list[str] = ["GermanoDevelopment"]
+    admin_github_usernames: list[str] = []
 
     @property
     def database_url_sync(self) -> str:
