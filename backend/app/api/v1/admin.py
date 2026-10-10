@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentAdminUser, DbSession
 from app.core.exceptions import ConflictError, NotFoundError
+from app.core.rate_limit import github_rate_limit
 from app.db.base import BountyModel, ProjectModel, RepositoryModel
 from app.schemas.admin import (
     AdminProjectCreate,
@@ -268,6 +269,7 @@ async def admin_add_repository(
 
 @router.post(
     "/repositories/{repository_id}/sync",
+    dependencies=[Depends(github_rate_limit)],
     summary="Sincronizar issues do repositório via API do GitHub",
 )
 async def admin_sync_repository_issues(
@@ -329,6 +331,7 @@ async def admin_assign_reward_to_issue(
 
 @router.post(
     "/bounties/{bounty_id}/review",
+    dependencies=[Depends(github_rate_limit)],
     response_model=BountyOut,
     summary="Moderar conclusão de task (Aprovar ou Negar)",
 )

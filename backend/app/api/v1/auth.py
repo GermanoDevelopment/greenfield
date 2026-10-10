@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -12,6 +12,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.core.rate_limit import auth_rate_limit, login_lockout
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.base import UserModel
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post(
     "/login",
+    dependencies=[Depends(auth_rate_limit)],
     response_model=TokenResponse,
     summary="Login com e-mail e senha",
 )
@@ -36,6 +38,7 @@ async def login(
     Retorna o token JWT Bearer e os dados cadastrais do usuário autenticado.
     """
     norm_email = payload.email.strip().lower()
+    login_lockout.check(norm_email)
     stmt = select(UserModel).where(func.lower(UserModel.email) == norm_email)
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
@@ -45,7 +48,9 @@ async def login(
         or not user.password_hash
         or not verify_password(payload.password, user.password_hash)
     ):
+        login_lockout.record_failure(norm_email)
         raise AuthenticationError("E-mail ou senha incorretos")
+    login_lockout.record_success(norm_email)
 
     token = create_access_token(user.id, user.username, email=user.email, role=user.role)
     return TokenResponse(access_token=token, user=UserOut.model_validate(user))
@@ -53,6 +58,7 @@ async def login(
 
 @router.post(
     "/register",
+    dependencies=[Depends(auth_rate_limit)],
     response_model=TokenResponse,
     summary="Registrar novo usuário com e-mail e senha",
     status_code=201,
@@ -153,6 +159,7 @@ async def _upsert_github_user(db: AsyncSession, gh_user: dict) -> UserModel:
 
 @router.get(
     "/github/callback",
+    dependencies=[Depends(auth_rate_limit)],
     summary="Callback do GitHub OAuth",
 )
 async def github_callback(
@@ -191,7 +198,12 @@ async def github_callback(
     return RedirectResponse(f"{frontend_callback}?token={token}")
 
 
-@router.post("/dev-login", response_model=TokenResponse, summary="Login direto de desenvolvimento")
+@router.post(
+    "/dev-login",
+    dependencies=[Depends(auth_rate_limit)],
+    response_model=TokenResponse,
+    summary="Login direto de desenvolvimento",
+)
 async def dev_login(data: DevLoginRequest, db: DbSession) -> TokenResponse:
     """Login rápido para desenvolvimento e demonstrações locais sem requisições ao GitHub."""
     settings = get_settings()

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
 from app.core.deps import CurrentUser, DbSession
 from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.rate_limit import github_rate_limit
 from app.db.base import BountyModel, ProjectModel, RepositoryModel
 from app.schemas.repository import GitHubIssueOut, RepositoryCreate, RepositoryOut
 from app.services import github_service
@@ -137,6 +138,7 @@ async def delete_repository(
 
 @router.get(
     "/repositories/{repository_id}/issues",
+    dependencies=[Depends(github_rate_limit)],
     response_model=list[GitHubIssueOut],
     summary="Listar issues do repositório para monetização",
 )

@@ -92,8 +92,9 @@ The `.env.example` files work out of the box.
 
 **Backend** (`backend/.env`):
 
+- `ENVIRONMENT`: defaults to `development`. Any other value (for example `production`) makes the backend refuse to start unless `JWT_SECRET` is a random value of at least 32 characters, `GITHUB_WEBHOOK_SECRET` is set, `DATABASE_URL` does not use the default `greenfield:greenfield` credentials, and the GitHub OAuth id and secret are set together.
 - `DATABASE_URL`: Postgres connection string. Docker Compose overrides the host to `postgres`.
-- `JWT_SECRET`: **change in production**. `JWT_EXPIRATION_MINUTES` defaults to `1440`.
+- `JWT_SECRET`: **change in production**; generate one with `openssl rand -hex 32`. `JWT_EXPIRATION_MINUTES` defaults to `1440`.
 - `CORS_ORIGINS`: allowed frontend origins. Defaults to ports `5173` and `3000`.
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`: GitHub OAuth.
 - `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **Required:** if empty, every webhook is rejected with `403`.
@@ -103,6 +104,10 @@ The `.env.example` files work out of the box.
 - `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY`: set both to enable on-chain escrow (see [Payouts](#payouts)).
 - `SOLANA_TREASURY_KEYPAIR_PATH` or `SOLANA_TREASURY_PRIVATE_KEY` (base58): treasury key for the custodial fallback.
 - `USDC_MINT_DEVNET`: USDC mint used for payouts.
+- `RATE_LIMIT_ENABLED` (default `true`): per-IP limits, per minute: `RATE_LIMIT_AUTH_PER_MINUTE` (`10`, for login, register, dev-login and the OAuth callback), `RATE_LIMIT_WEBHOOK_PER_MINUTE` (`120`) and `RATE_LIMIT_GITHUB_PER_MINUTE` (`30`, for routes that call the GitHub API). Over the limit, the API returns `429` with `Retry-After`.
+- `LOGIN_MAX_FAILURES` (`5`) and `LOGIN_LOCKOUT_MINUTES` (`15`): after that many failed logins for one email within the window, that email is locked for the window, even with the right password.
+
+Limits are kept in memory per process, so each worker or replica counts separately. Behind a reverse proxy, run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy ip>` so limits apply to the client IP, not the proxy's.
 
 **Frontend** (`frontend/.env`). Vite reads these at boot, so restart `npm run dev` after changes:
 
