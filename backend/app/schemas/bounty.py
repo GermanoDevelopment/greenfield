@@ -126,6 +126,7 @@ class BountyRewardUpdate(BaseModel):
 
 class BountyClaimSubmit(BaseModel):
     """Submetido pelo desenvolvedor ao assinar a transação de claim on-chain."""
+
     tx_signature: str = Field(
         min_length=64,
         max_length=128,

@@ -72,10 +72,19 @@ Open http://localhost:5173. The default `DATABASE_URL` in `.env.example` works a
 ### First login
 
 - **Email and password:** sign up in the app's login modal, or `POST /api/v1/auth/register`.
-- **Seeded dev admins:** created on every backend boot with the password `admin123` (see `backend/app/services/admin_seed.py`).
 - **GitHub OAuth:** needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
 
-> ⚠️ The seeded admins are for development only. Remove them or change the passwords, and set your own `JWT_SECRET`, before any shared deployment.
+New accounts are always `CONTRIBUTOR`. No admin exists on a fresh instance; an operator provisions one:
+
+- **GitHub admins:** list their usernames in `ADMIN_GITHUB_USERNAMES`. They become `ADMIN` on OAuth login.
+- **Email and password admins:** run the CLI. It creates the user, or promotes an existing one, without exposing an HTTP route.
+
+```bash
+cd backend
+GREENFIELD_ADMIN_PASSWORD='<at least 12 chars>' uv run python -m app.cli create-admin --email ops@example.com --username ops
+```
+
+Without `GREENFIELD_ADMIN_PASSWORD` the CLI prompts for the password. Migration `000005` demotes the old `@greenfield.com` seed admins that still have the password `admin123` and disables their password login, so re-provision them with the CLI.
 
 ## Configuration
 
@@ -83,17 +92,23 @@ The `.env.example` files work out of the box.
 
 **Backend** (`backend/.env`):
 
+- `ENVIRONMENT`: defaults to `development`. Any other value (for example `production`) makes the backend refuse to start unless `JWT_SECRET` is a random value of at least 32 characters, `GITHUB_WEBHOOK_SECRET` is set, `DATABASE_URL` does not use the default `greenfield:greenfield` credentials, and the GitHub OAuth id and secret are set together.
 - `DATABASE_URL`: Postgres connection string. Docker Compose overrides the host to `postgres`.
-- `JWT_SECRET`: **change in production**. `JWT_EXPIRATION_MINUTES` defaults to `1440`.
+- `JWT_SECRET`: **change in production**; generate one with `openssl rand -hex 32`. `JWT_EXPIRATION_MINUTES` defaults to `1440`.
 - `CORS_ORIGINS`: allowed frontend origins. Defaults to ports `5173` and `3000`.
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`: GitHub OAuth.
-- `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **If empty, any payload is accepted.**
+- `GITHUB_WEBHOOK_SECRET`: HMAC secret for the webhook. **Required:** if empty, every webhook is rejected with `403`.
 - `GITHUB_TOKEN`: token for GitHub API calls when the user has none.
-- `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login.
+- `ENABLE_DEV_LOGIN` (default `false`): enables `POST /auth/dev-login`, which logs in as any username with no password, for local demos only. Even when `true`, it stays off while GitHub OAuth is configured. Never enable it on a shared deployment.
+- `ADMIN_GITHUB_USERNAMES`: GitHub usernames that become ADMIN on OAuth login. Empty by default.
 - `SOLANA_RPC_URL`: defaults to devnet.
 - `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY`: set both to enable on-chain escrow (see [Payouts](#payouts)).
 - `SOLANA_TREASURY_KEYPAIR_PATH` or `SOLANA_TREASURY_PRIVATE_KEY` (base58): treasury key for the custodial fallback.
 - `USDC_MINT_DEVNET`: USDC mint used for payouts.
+- `RATE_LIMIT_ENABLED` (default `true`): per-IP limits, per minute: `RATE_LIMIT_AUTH_PER_MINUTE` (`10`, for login, register, dev-login and the OAuth callback), `RATE_LIMIT_WEBHOOK_PER_MINUTE` (`120`) and `RATE_LIMIT_GITHUB_PER_MINUTE` (`30`, for routes that call the GitHub API). Over the limit, the API returns `429` with `Retry-After`.
+- `LOGIN_MAX_FAILURES` (`5`) and `LOGIN_LOCKOUT_MINUTES` (`15`): after that many failed logins for one email within the window, that email is locked for the window, even with the right password.
+
+Limits are kept in memory per process, so each worker or replica counts separately. Behind a reverse proxy, run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy ip>` so limits apply to the client IP, not the proxy's.
 
 **Frontend** (`frontend/.env`). Vite reads these at boot, so restart `npm run dev` after changes:
 
@@ -158,7 +173,7 @@ Everything lives under `/api/v1`:
 
 Route groups: `auth`, `users`, `projects`, `repositories`, `bounties`, `admin`, `webhooks`. Bounty routes are listed in [`backend/README.md`](backend/README.md).
 
-**GitHub webhook.** To complete bounties on merge, point a repository webhook at `POST /api/v1/webhooks/github` with content type `application/json` and the **Pull requests** and **Issues** events. Use the same secret in GitHub and in `GITHUB_WEBHOOK_SECRET`.
+**GitHub webhook.** To complete bounties on merge, point a repository webhook at `POST /api/v1/webhooks/github` with content type `application/json` and the **Pull requests** and **Issues** events. Use the same secret in GitHub and in `GITHUB_WEBHOOK_SECRET`; unsigned or wrongly signed deliveries are rejected with `403`, and so is every delivery while the secret is unset. Admin approval (`POST /admin/bounties/{id}/review`) also requires the PR to be merged on GitHub; there is no override.
 
 ## Repository layout
 
@@ -181,7 +196,7 @@ greenfield/
 - **`/auth/github/login` fails:** the GitHub OAuth variables are empty. Use email and password in development.
 - **Bounty completed with no `tx_signature` (custodial mode):** the contributor has no wallet linked (`PATCH /users/me`), or the transfer failed silently. See [Payouts](#payouts).
 - **`On-chain transaction failed` (escrow mode):** the Solana step was rejected, so the change was rolled back. Check `SOLANA_PROGRAM_ID`, the authority key balance and `SOLANA_RPC_URL`.
-- **Webhook returns `403 Invalid signature`:** the secret in GitHub differs from `GITHUB_WEBHOOK_SECRET`.
+- **Webhook returns `403 Invalid signature`:** `GITHUB_WEBHOOK_SECRET` is empty, or the secret in GitHub differs from it.
 
 Full local reset:
 

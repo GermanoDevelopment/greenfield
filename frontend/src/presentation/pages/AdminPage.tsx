@@ -222,7 +222,6 @@ export const AdminPage: React.FC = () => {
       if (isBackendConnected) {
         await greenfieldApi.admin.reviewSubmission(bountyId, {
           action: 'APPROVE',
-          force_payout: true,
         });
       } else {
         // Mock update

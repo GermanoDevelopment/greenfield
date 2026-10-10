@@ -181,9 +181,7 @@ async def test_create_bounty_rolls_back_on_chain_rejection(
     assert "On-chain transaction failed" in resp.json()["detail"]
 
     # No orphaned row was left behind by the failed on-chain reservation.
-    list_resp = await client.get(
-        f"/api/v1/bounties?project_id={onchain_project['id']}&status=OPEN"
-    )
+    list_resp = await client.get(f"/api/v1/bounties?project_id={onchain_project['id']}&status=OPEN")
     assert list_resp.json() == []
 
 
