@@ -1,4 +1,4 @@
-﻿"""admin users, email, password_hash and nullable github_id
+"""admin users, email, password_hash and nullable github_id
 
 Revision ID: 000004
 Revises: 000003
