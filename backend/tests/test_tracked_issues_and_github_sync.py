@@ -1,9 +1,24 @@
+import hashlib
+import hmac
 import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.core.config import get_settings
+
 pytestmark = pytest.mark.asyncio
+
+WEBHOOK_SECRET = "webhook-secret-123"
+
+
+def _signed_issue_headers(body: bytes) -> dict:
+    signature = hmac.new(WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    return {
+        "X-GitHub-Event": "issues",
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": f"sha256={signature}",
+    }
 
 
 async def test_admin_projects_crud(client, admin_headers, auth_headers):
@@ -55,7 +70,8 @@ async def test_admin_projects_crud(client, admin_headers, auth_headers):
     assert del_resp.status_code == 204
 
 
-async def test_webhook_issues_opened_and_closed(client, admin_headers):
+async def test_webhook_issues_opened_and_closed(client, admin_headers, monkeypatch):
+    monkeypatch.setattr(get_settings(), "github_webhook_secret", WEBHOOK_SECRET)
     # 1. Create project with repository
     create_resp = await client.post(
         "/api/v1/admin/projects",
@@ -90,7 +106,7 @@ async def test_webhook_issues_opened_and_closed(client, admin_headers):
     wh_resp = await client.post(
         "/api/v1/webhooks/github",
         content=json.dumps(issue_payload).encode(),
-        headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        headers=_signed_issue_headers(json.dumps(issue_payload).encode()),
     )
     assert wh_resp.status_code == 200
     assert "recorded" in wh_resp.json()["detail"]
@@ -125,7 +141,7 @@ async def test_webhook_issues_opened_and_closed(client, admin_headers):
     wh_close = await client.post(
         "/api/v1/webhooks/github",
         content=json.dumps(close_payload).encode(),
-        headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        headers=_signed_issue_headers(json.dumps(close_payload).encode()),
     )
     assert wh_close.status_code == 200
 

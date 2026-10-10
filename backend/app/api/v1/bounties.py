@@ -1,11 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser, DbSession
 from app.core.exceptions import NotFoundError
+from app.core.rate_limit import github_rate_limit
 from app.db.base import BountyApplicantModel, BountyModel
 from app.schemas.bounty import (
     BountyApplicantCreate,
@@ -41,6 +42,7 @@ async def _get_bounty_or_404(db: DbSession, bounty_id: int) -> BountyModel:
 
 @router.post(
     "",
+    dependencies=[Depends(github_rate_limit)],
     response_model=BountyOut,
     status_code=201,
     summary="Criar task monetizada (bounty)",
@@ -231,6 +233,7 @@ async def submit_bounty(
 
 @router.post(
     "/{bounty_id}/complete",
+    dependencies=[Depends(github_rate_limit)],
     response_model=BountyOut,
     summary="Completar bounty e disparar liquidação on-chain",
 )

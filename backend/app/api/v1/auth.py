@@ -1,6 +1,6 @@
 import hashlib
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -14,6 +14,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.core.rate_limit import auth_rate_limit, login_lockout
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.base import UserModel
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
@@ -26,6 +27,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post(
     "/login",
+    dependencies=[Depends(auth_rate_limit)],
     response_model=TokenResponse,
     summary="Login com e-mail e senha",
 )
@@ -38,6 +40,7 @@ async def login(
     Retorna o token JWT Bearer e os dados cadastrais do usuário autenticado.
     """
     norm_email = payload.email.strip().lower()
+    login_lockout.check(norm_email)
     stmt = select(UserModel).where(func.lower(UserModel.email) == norm_email)
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
@@ -47,7 +50,9 @@ async def login(
         or not user.password_hash
         or not verify_password(payload.password, user.password_hash)
     ):
+        login_lockout.record_failure(norm_email)
         raise AuthenticationError("E-mail ou senha incorretos")
+    login_lockout.record_success(norm_email)
 
     token = create_access_token(user.id, user.username, email=user.email, role=user.role)
     return TokenResponse(access_token=token, user=UserOut.model_validate(user))
@@ -55,6 +60,7 @@ async def login(
 
 @router.post(
     "/register",
+    dependencies=[Depends(auth_rate_limit)],
     response_model=TokenResponse,
     summary="Registrar novo usuário com e-mail e senha",
     status_code=201,
@@ -64,8 +70,8 @@ async def register(
     payload: RegisterRequest,
 ) -> TokenResponse:
     """
-    Registra um novo usuário na aplicação com e-mail e senha.
-    Se o e-mail pertencer ao domínio @greenfield.com, concede automaticamente o papel ADMIN.
+    Registra um novo usuário na aplicação com e-mail e senha, sempre como CONTRIBUTOR.
+    O e-mail não é verificado, então nunca concede papel privilegiado.
     """
     norm_email = payload.email.strip().lower()
     norm_username = payload.username.strip()
@@ -80,13 +86,11 @@ async def register(
     if res_user.scalar_one_or_none() is not None:
         raise ConflictError("Este nome de usuário já está em uso")
 
-    role = "ADMIN" if norm_email.endswith("@greenfield.com") else "CONTRIBUTOR"
-
     user = UserModel(
         email=norm_email,
         username=norm_username,
         password_hash=hash_password(payload.password),
-        role=role,
+        role="CONTRIBUTOR",
         avatar_url=f"https://avatar.vercel.sh/{norm_username}",
     )
     db.add(user)
@@ -159,6 +163,7 @@ async def _upsert_github_user(db: AsyncSession, gh_user: dict) -> UserModel:
 
 @router.get(
     "/github/callback",
+    dependencies=[Depends(auth_rate_limit)],
     summary="Callback do GitHub OAuth",
 )
 async def github_callback(
@@ -210,10 +215,14 @@ def _dev_github_id(username: str) -> int:
     return -(int.from_bytes(digest[:4], "big") % (2**31 - 1)) - 1
 
 
-@router.post("/dev-login", response_model=TokenResponse, summary="Login direto de desenvolvimento")
+@router.post(
+    "/dev-login",
+    dependencies=[Depends(auth_rate_limit)],
+    response_model=TokenResponse,
+    summary="Login direto de desenvolvimento",
+)
 async def dev_login(data: DevLoginRequest, db: DbSession) -> TokenResponse:
     """Login rápido para desenvolvimento e demonstrações locais sem requisições ao GitHub."""
-    settings = get_settings()
     if not _dev_login_enabled():
         raise NotFoundError("Route")
 
@@ -225,13 +234,13 @@ async def dev_login(data: DevLoginRequest, db: DbSession) -> TokenResponse:
 
     result = await db.execute(select(UserModel).where(UserModel.github_id == fake_github_id))
     user = result.scalar_one_or_none()
-    is_admin = username in settings.admin_github_usernames
 
+    # The username is not verified here, so dev-login never grants ADMIN.
     if user is None:
         user = UserModel(
             github_id=fake_github_id,
             username=username,
-            role="ADMIN" if is_admin else "CONTRIBUTOR",
+            role="CONTRIBUTOR",
         )
         db.add(user)
         await db.commit()

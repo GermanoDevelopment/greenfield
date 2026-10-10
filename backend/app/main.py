@@ -1,11 +1,9 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
-from app.core.config import get_settings
+from app.core.config import get_settings, validate_settings
 from app.core.exceptions import DomainError
 from app.core.security import TokenError
 
@@ -71,29 +69,14 @@ TAGS_METADATA = [
 ]
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    try:
-        from app.db.session import async_session_factory
-        from app.services.admin_seed import seed_default_admins
-
-        async with async_session_factory() as session:
-            await seed_default_admins(session)
-    except Exception as e:
-        import logging
-
-        logging.getLogger("greenfield").warning("Seed de admins ignorado: %s", e)
-    yield
-
-
 def create_app() -> FastAPI:
     settings = get_settings()
+    validate_settings(settings)
     app = FastAPI(
         title="GREENFIELD — Solana Dev Rewards API",
         description=API_DESCRIPTION,
         version="0.1.0",
         openapi_tags=TAGS_METADATA,
-        lifespan=lifespan,
     )
 
     app.add_middleware(

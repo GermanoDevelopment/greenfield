@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentAdminUser, DbSession
 from app.core.exceptions import ConflictError, NotFoundError
+from app.core.rate_limit import github_rate_limit
 from app.db.base import BountyModel, ProjectModel, RepositoryModel
 from app.schemas.admin import (
     AdminProjectCreate,
@@ -15,7 +16,7 @@ from app.schemas.bounty import BountyOut, BountyStatus
 from app.schemas.project import ProjectUpdate
 from app.schemas.repository import RepositoryCreate, RepositoryOut
 from app.schemas.tracked_issue import AssignRewardRequest, TrackedIssueOut
-from app.services import bounty_service, github_service, solana_service
+from app.services import bounty_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -268,6 +269,7 @@ async def admin_add_repository(
 
 @router.post(
     "/repositories/{repository_id}/sync",
+    dependencies=[Depends(github_rate_limit)],
     summary="Sincronizar issues do repositório via API do GitHub",
 )
 async def admin_sync_repository_issues(
@@ -329,6 +331,7 @@ async def admin_assign_reward_to_issue(
 
 @router.post(
     "/bounties/{bounty_id}/review",
+    dependencies=[Depends(github_rate_limit)],
     response_model=BountyOut,
     summary="Moderar conclusão de task (Aprovar ou Negar)",
 )
@@ -340,7 +343,7 @@ async def review_bounty_submission(
 ) -> BountyModel:
     """
     Avalia a solução de uma tarefa submetida:
-    - 'APPROVE': conclui a tarefa e dispara a liquidação de USDC na Solana via Solinpy.
+    - 'APPROVE': exige PR mergeado no GitHub; conclui a tarefa e libera o pagamento.
     - 'REJECT': recusa a solução e reverte o status para ASSIGNED para correções.
     """
     bounty = await bounty_service.get_bounty(db, bounty_id)
@@ -349,40 +352,8 @@ async def review_bounty_submission(
 
     action = data.action.upper()
     if action == "APPROVE":
-        if not bounty.pr_url:
-            raise ConflictError("Bounty has no PR submitted")
-
-        if not data.force_payout:
-            merged = await github_service.is_pr_merged(bounty.pr_url)
-            if merged is None:
-                raise ConflictError("Could not verify PR status on GitHub")
-            if not merged:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Pull request is not merged yet on GitHub",
-                )
-
-        bounty_service._transition(bounty, BountyStatus.COMPLETED)
-
-        if bounty.hunter_id:
-            from app.db.base import UserModel
-
-            hunter = await db.get(UserModel, bounty.hunter_id)
-            if hunter and hunter.wallet:
-                try:
-                    from datetime import UTC, datetime
-
-                    tx_sig = await solana_service.execute_bounty_payout(
-                        destination_wallet=hunter.wallet,
-                        amount_micro_usdc=bounty.amount_usdc,
-                    )
-                    bounty.tx_signature = tx_sig
-                    bounty.claimed_at = datetime.now(UTC)
-                except Exception:
-                    pass
-
-        await db.commit()
-        await db.refresh(bounty)
+        # Same path as the issuer: merge must be verified on GitHub before release.
+        await bounty_service.complete_bounty(db, bounty, admin)
         return await bounty_service.get_bounty(db, bounty_id)
 
     elif action == "REJECT":

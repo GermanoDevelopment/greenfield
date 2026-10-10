@@ -188,7 +188,6 @@ export interface AdminStatsOut {
 export interface ReviewSubmissionPayload {
   action: 'APPROVE' | 'REJECT';
   reason?: string;
-  force_payout?: boolean;
 }
 
 export const greenfieldApi = {

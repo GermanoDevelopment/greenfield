@@ -21,6 +21,16 @@ def _isolate_onchain_settings(monkeypatch):
     monkeypatch.setattr(settings, "solana_authority_secret_key", "")
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """O estado dos limiters é global ao processo; cada teste começa zerado."""
+    from app.core.rate_limit import reset_rate_limits
+
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
+
+
 @pytest.fixture
 def mock_github_issue_open(monkeypatch):
     from app.services import github_service
