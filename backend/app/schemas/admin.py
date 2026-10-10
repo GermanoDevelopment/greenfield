@@ -66,7 +66,3 @@ class ReviewSubmissionRequest(BaseModel):
         description="Justificativa técnica enviada ao desenvolvedor em caso de recusa",
         examples=["O PR precisa incluir testes unitários para a função de transferência."],
     )
-    force_payout: bool = Field(
-        False,
-        description="Permite ao admin forçar a liquidação mesmo se o PR estiver em validação",
-    )

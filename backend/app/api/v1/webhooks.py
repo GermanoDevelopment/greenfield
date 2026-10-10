@@ -17,7 +17,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 def _verify_signature(payload: bytes, signature_header: str | None) -> bool:
     secret = get_settings().github_webhook_secret
     if not secret:
-        return True
+        return False
     if not signature_header:
         return False
     expected = "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
