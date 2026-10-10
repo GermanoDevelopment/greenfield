@@ -1,3 +1,5 @@
+import hashlib
+
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
@@ -101,6 +103,7 @@ async def register(
 
 class AuthConfigOut(BaseModel):
     github_oauth_configured: bool
+    dev_login_enabled: bool
 
 
 class DevLoginRequest(BaseModel):
@@ -115,7 +118,8 @@ class DevLoginRequest(BaseModel):
 async def auth_config() -> AuthConfigOut:
     settings = get_settings()
     return AuthConfigOut(
-        github_oauth_configured=bool(settings.github_client_id and settings.github_client_secret)
+        github_oauth_configured=bool(settings.github_client_id and settings.github_client_secret),
+        dev_login_enabled=_dev_login_enabled(),
     )
 
 
@@ -198,6 +202,19 @@ async def github_callback(
     return RedirectResponse(f"{frontend_callback}?token={token}")
 
 
+def _dev_login_enabled() -> bool:
+    settings = get_settings()
+    oauth_configured = bool(settings.github_client_id and settings.github_client_secret)
+    return settings.enable_dev_login and not oauth_configured
+
+
+def _dev_github_id(username: str) -> int:
+    """Id falso estável entre reinícios (ao contrário de `hash()`, que é aleatório
+    por processo) e sempre negativo, para nunca colidir com um id real do GitHub."""
+    digest = hashlib.sha256(username.encode("utf-8")).digest()
+    return -(int.from_bytes(digest[:4], "big") % (2**31 - 1)) - 1
+
+
 @router.post(
     "/dev-login",
     dependencies=[Depends(auth_rate_limit)],
@@ -206,15 +223,14 @@ async def github_callback(
 )
 async def dev_login(data: DevLoginRequest, db: DbSession) -> TokenResponse:
     """Login rápido para desenvolvimento e demonstrações locais sem requisições ao GitHub."""
-    settings = get_settings()
-    if settings.github_client_id and settings.github_client_secret:
+    if not _dev_login_enabled():
         raise NotFoundError("Route")
 
     username = data.username.strip()
     if not username:
         raise ValidationError("username must not be blank")
 
-    fake_github_id = -abs(hash(username)) % (2**31)
+    fake_github_id = _dev_github_id(username)
 
     result = await db.execute(select(UserModel).where(UserModel.github_id == fake_github_id))
     user = result.scalar_one_or_none()

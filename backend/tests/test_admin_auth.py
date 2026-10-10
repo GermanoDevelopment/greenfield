@@ -62,7 +62,9 @@ async def test_register_is_always_contributor(client, session_factory, email):
 
 
 async def test_dev_login_never_grants_admin(client, monkeypatch):
-    monkeypatch.setattr(get_settings(), "admin_github_usernames", ["GermanoDevelopment"])
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_dev_login", True)
+    monkeypatch.setattr(settings, "admin_github_usernames", ["GermanoDevelopment"])
     resp = await client.post("/api/v1/auth/dev-login", json={"username": "GermanoDevelopment"})
     assert resp.status_code == 200
     assert resp.json()["user"]["role"] == "CONTRIBUTOR"
