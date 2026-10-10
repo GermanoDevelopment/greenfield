@@ -11,6 +11,7 @@ from app.db.base import BountyApplicantModel, BountyModel
 from app.schemas.bounty import (
     BountyApplicantCreate,
     BountyApplicantOut,
+    BountyAssignInput,
     BountyClaimSubmit,
     BountyCreate,
     BountyOut,
@@ -204,15 +205,26 @@ async def update_bounty_reward(
 @router.post(
     "/{bounty_id}/assign",
     response_model=BountyOut,
-    summary="Atribuição direta (legado)",
+    summary="Atribuição direta (Mantenedor ou Admin)",
 )
-async def assign_bounty(bounty_id: int, current_user: CurrentUser, db: DbSession) -> BountyModel:
+async def assign_bounty(
+    bounty_id: int,
+    current_user: CurrentUser,
+    db: DbSession,
+    data: BountyAssignInput | None = None,
+) -> BountyModel:
     """
-    Permite a auto-atribuição direta de um desenvolvedor caso o fluxo
-    simplificado sem applicants seja utilizado.
+    Permite apenas ao mantenedor da bounty ou a um administrador atribuir
+    diretamente um desenvolvedor à bounty (auto-atribuição por contribuidores é proibida).
     """
     bounty = await _get_bounty_or_404(db, bounty_id)
-    return await bounty_service.assign_bounty(db, bounty, current_user)
+    hunter_id = data.hunter_id if data is not None else None
+    return await bounty_service.assign_bounty(
+        session=db,
+        bounty=bounty,
+        actor=current_user,
+        hunter_id=hunter_id,
+    )
 
 
 @router.post(

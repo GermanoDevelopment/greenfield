@@ -56,14 +56,15 @@ async def test_admin_and_owner_can_update_reward_while_open(
 
 
 async def test_cannot_update_reward_after_assigned(
-    client, auth_headers, hunter_headers, open_bounty_fixture
+    client, auth_headers, hunter_headers, hunter_user, open_bounty_fixture
 ):
     bounty_id = open_bounty_fixture["id"]
 
-    # Assign bounty
+    # Assign bounty via maintainer
     assign_resp = await client.post(
         f"/api/v1/bounties/{bounty_id}/assign",
-        headers=hunter_headers,
+        json={"hunter_id": hunter_user["id"]},
+        headers=auth_headers,
     )
     assert assign_resp.status_code == 200
     assert assign_resp.json()["status"] == "ASSIGNED"
@@ -90,7 +91,7 @@ async def test_non_owner_non_admin_cannot_update_reward(
 
 
 async def test_solinpy_payout_on_complete(
-    client, auth_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged
+    client, auth_headers, hunter_headers, hunter_user, open_bounty_fixture, mock_github_pr_merged
 ):
     bounty_id = open_bounty_fixture["id"]
     mock_github_pr_merged["body"] = "Closes #10"
@@ -99,8 +100,12 @@ async def test_solinpy_payout_on_complete(
     wallet_addr = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
     await client.patch("/api/v1/users/me", json={"wallet": wallet_addr}, headers=hunter_headers)
 
-    # 2. Assign and Submit
-    await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_headers)
+    # 2. Maintainer assigns Bob and Bob submits
+    await client.post(
+        f"/api/v1/bounties/{bounty_id}/assign",
+        json={"hunter_id": hunter_user["id"]},
+        headers=auth_headers,
+    )
     await client.post(
         f"/api/v1/bounties/{bounty_id}/submit",
         json={"pr_url": "https://github.com/acme/governance-repo/pull/1"},
@@ -139,15 +144,19 @@ async def test_admin_stats_and_permissions(client, admin_headers, hunter_headers
 
 
 async def test_admin_review_submission_reject_and_approve(
-    client, admin_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged
+    client, admin_headers, hunter_headers, hunter_user, open_bounty_fixture, mock_github_pr_merged
 ):
     bounty_id = open_bounty_fixture["id"]
     mock_github_pr_merged["body"] = "Closes #10"
 
-    # Hunter configures wallet and submits
+    # Hunter configures wallet and Admin assigns Bob
     wallet_addr = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
     await client.patch("/api/v1/users/me", json={"wallet": wallet_addr}, headers=hunter_headers)
-    await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_headers)
+    await client.post(
+        f"/api/v1/bounties/{bounty_id}/assign",
+        json={"hunter_id": hunter_user["id"]},
+        headers=admin_headers,
+    )
     await client.post(
         f"/api/v1/bounties/{bounty_id}/submit",
         json={"pr_url": "https://github.com/acme/governance-repo/pull/42"},
