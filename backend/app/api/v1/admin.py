@@ -327,7 +327,6 @@ async def admin_assign_reward_to_issue(
     return await bounty_service.get_bounty(db, bounty.id)
 
 
-
 @router.post(
     "/bounties/{bounty_id}/review",
     response_model=BountyOut,
