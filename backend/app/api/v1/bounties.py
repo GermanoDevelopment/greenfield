@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +20,9 @@ from app.schemas.bounty import (
     BountySubmit,
 )
 from app.services import bounty_service
+
+DEFAULT_PAGE_SIZE = 100
+MAX_PAGE_SIZE = 500
 
 router = APIRouter(prefix="/bounties", tags=["bounties"])
 
@@ -74,6 +77,7 @@ async def create_bounty(
 )
 async def list_bounties(
     db: DbSession,
+    response: Response,
     status: Annotated[
         BountyStatus | None, Query(description="Filtrar por status do ciclo de vida")
     ] = None,
@@ -82,19 +86,31 @@ async def list_bounties(
         int | None, Query(description="Filtrar por ID do desenvolvedor atribuído")
     ] = None,
     repository_id: Annotated[int | None, Query(description="Filtrar por ID do repositório")] = None,
+    limit: Annotated[
+        int, Query(ge=1, le=MAX_PAGE_SIZE, description="Tamanho da página")
+    ] = DEFAULT_PAGE_SIZE,
+    offset: Annotated[int, Query(ge=0, description="Quantos itens pular")] = 0,
 ) -> list[BountyModel]:
     """
     Retorna a listagem de bounties com filtros opcionais por status,
-    projeto, hunter ou repositório.
+    projeto, hunter ou repositório, paginada por `limit`/`offset`.
+
+    O total vem no header `X-Total-Count`; `X-Next-Offset` traz o offset da
+    próxima página e só aparece quando ainda há itens.
     """
-    bounties = await bounty_service.list_bounties(
+    bounties, total = await bounty_service.list_bounties(
         db,
         status=status,
         project_id=project_id,
         hunter_id=hunter_id,
         repository_id=repository_id,
+        limit=limit,
+        offset=offset,
     )
-    return list(bounties)
+    response.headers["X-Total-Count"] = str(total)
+    if offset + len(bounties) < total:
+        response.headers["X-Next-Offset"] = str(offset + len(bounties))
+    return bounties
 
 
 @router.get(

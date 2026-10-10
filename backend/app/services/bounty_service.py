@@ -159,26 +159,40 @@ async def list_bounties(
     project_id: int | None = None,
     hunter_id: int | None = None,
     repository_id: int | None = None,
-) -> list[BountyModel]:
+    limit: int | None = None,
+    offset: int = 0,
+) -> tuple[list[BountyModel], int]:
+    """Retorna a página pedida e o total de bounties que atendem aos filtros."""
+    filters = []
+    if status is not None:
+        filters.append(BountyModel.status == status.value)
+    if project_id is not None:
+        filters.append(BountyModel.project_id == project_id)
+    if hunter_id is not None:
+        filters.append(BountyModel.hunter_id == hunter_id)
+    if repository_id is not None:
+        filters.append(BountyModel.repository_id == repository_id)
+
+    total = (
+        await session.execute(select(func.count()).select_from(BountyModel).where(*filters))
+    ).scalar_one()
+
     stmt = (
         select(BountyModel)
+        .where(*filters)
         .options(
             selectinload(BountyModel.issuer),
             selectinload(BountyModel.hunter),
             selectinload(BountyModel.applicants).selectinload(BountyApplicantModel.user),
         )
-        .order_by(BountyModel.created_at.desc())
+        # id breaks ties so pages are stable when created_at collides.
+        .order_by(BountyModel.created_at.desc(), BountyModel.id.desc())
+        .offset(offset)
     )
-    if status is not None:
-        stmt = stmt.where(BountyModel.status == status.value)
-    if project_id is not None:
-        stmt = stmt.where(BountyModel.project_id == project_id)
-    if hunter_id is not None:
-        stmt = stmt.where(BountyModel.hunter_id == hunter_id)
-    if repository_id is not None:
-        stmt = stmt.where(BountyModel.repository_id == repository_id)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    return list(result.scalars().all()), total
 
 
 async def apply_to_bounty(

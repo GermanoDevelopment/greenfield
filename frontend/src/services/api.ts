@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosResponse } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
@@ -280,8 +280,19 @@ export const greenfieldApi = {
     hunter_id?: number;
     repository_id?: number;
   }): Promise<ApiBountyOut[]> => {
-    const response = await apiClient.get<ApiBountyOut[]>('/bounties', { params });
-    return response.data;
+    // The API pages results (X-Next-Offset header); callers expect the full list.
+    const bounties: ApiBountyOut[] = [];
+    let offset: number | undefined = 0;
+    while (offset !== undefined) {
+      const response: AxiosResponse<ApiBountyOut[]> = await apiClient.get<ApiBountyOut[]>(
+        '/bounties',
+        { params: { ...params, limit: 500, offset } }
+      );
+      bounties.push(...response.data);
+      const next: unknown = response.headers['x-next-offset'];
+      offset = next != null ? Number(next) : undefined;
+    }
+    return bounties;
   },
   getBounty: async (bountyId: number): Promise<ApiBountyOut> => {
     const response = await apiClient.get<ApiBountyOut>(`/bounties/${bountyId}`);
