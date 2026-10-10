@@ -287,5 +287,3 @@ async def report_claim(
     """
     bounty = await _get_bounty_or_404(db, bounty_id)
     return await bounty_service.record_claim(db, bounty, current_user, data.tx_signature)
-
-

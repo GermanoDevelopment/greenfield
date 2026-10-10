@@ -213,4 +213,3 @@ async def fetch_repository_details(
         "stargazers_count": data.get("stargazers_count", 0),
         "html_url": data.get("html_url", f"https://github.com/{owner}/{repo}"),
     }
-
