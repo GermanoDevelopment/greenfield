@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -71,21 +70,6 @@ TAGS_METADATA = [
 ]
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    try:
-        from app.db.session import async_session_factory
-        from app.services.admin_seed import seed_default_admins
-
-        async with async_session_factory() as session:
-            await seed_default_admins(session)
-    except Exception as e:
-        import logging
-
-        logging.getLogger("greenfield").warning("Seed de admins ignorado: %s", e)
-    yield
-
-
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -93,7 +77,6 @@ def create_app() -> FastAPI:
         description=API_DESCRIPTION,
         version="0.1.0",
         openapi_tags=TAGS_METADATA,
-        lifespan=lifespan,
     )
 
     app.add_middleware(
