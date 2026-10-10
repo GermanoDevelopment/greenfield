@@ -2,11 +2,12 @@ import hashlib
 import hmac
 import json
 
-from fastapi import APIRouter, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, Request, Response
 from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.deps import DbSession
+from app.core.rate_limit import webhook_rate_limit
 from app.db.base import BountyModel, UserModel
 from app.schemas.bounty import BountyStatus
 from app.services.bounty_service import complete_bounty, record_incoming_github_issue
@@ -26,6 +27,7 @@ def _verify_signature(payload: bytes, signature_header: str | None) -> bool:
 
 @router.post(
     "/github",
+    dependencies=[Depends(webhook_rate_limit)],
     summary="Webhook de eventos do GitHub",
 )
 async def github_webhook(
