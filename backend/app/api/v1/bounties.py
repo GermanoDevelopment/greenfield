@@ -5,12 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser, DbSession
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.rate_limit import github_rate_limit
 from app.db.base import BountyApplicantModel, BountyModel
 from app.schemas.bounty import (
     BountyApplicantCreate,
     BountyApplicantOut,
+    BountyAuditLogOut,
     BountyClaimSubmit,
     BountyCreate,
     BountyOut,
@@ -306,3 +307,52 @@ async def report_claim(
     """
     bounty = await _get_bounty_or_404(db, bounty_id)
     return await bounty_service.record_claim(db, bounty, current_user, data.tx_signature)
+
+
+@router.post(
+    "/{bounty_id}/retry",
+    response_model=BountyOut,
+    summary="Tentar novamente aprovação ou pagamento de bounty com falha",
+)
+async def retry_bounty(
+    bounty_id: int,
+    current_user: CurrentUser,
+    db: DbSession,
+    force: bool = False,
+) -> BountyModel:
+    """
+    Permite que o mantenedor, o caçador atribuído ou um ADMIN tente novamente
+    a aprovação on-chain ou liquidação custodial de uma bounty que falhou (CLAIM_FAILED).
+    Respeita backoff exponencial para evitar sobrecarga de RPC/provedores.
+    """
+    bounty = await _get_bounty_or_404(db, bounty_id)
+    return await bounty_service.retry_bounty_payout_or_approval(
+        session=db,
+        bounty=bounty,
+        actor=current_user,
+        force=force,
+    )
+
+
+@router.get(
+    "/{bounty_id}/audit-logs",
+    response_model=list[BountyAuditLogOut],
+    summary="Consultar trilha de auditoria da bounty",
+)
+async def get_bounty_audit_logs(
+    bounty_id: int,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> list:
+    """
+    Retorna o histórico cronológico de ações, retentativas e reconciliações
+    registradas para a bounty. Acessível pelo emissor, caçador atribuído ou ADMIN.
+    """
+    bounty = await _get_bounty_or_404(db, bounty_id)
+    if (
+        bounty.issuer_id != current_user.id
+        and bounty.hunter_id != current_user.id
+        and current_user.role != "ADMIN"
+    ):
+        raise ForbiddenError("Only the issuer, assigned hunter, or an admin can view audit logs")
+    return await bounty_service.get_bounty_audit_logs(db, bounty_id)

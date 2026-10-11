@@ -76,3 +76,30 @@ class ReviewSubmissionRequest(BaseModel):
         description="Justificativa técnica enviada ao desenvolvedor em caso de recusa",
         examples=["O PR precisa incluir testes unitários para a função de transferência."],
     )
+
+
+class FailedBountyApprovalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    bounty_id: int
+    project_id: int
+    issue_url: str
+    issue_title: str | None = None
+    status: str
+    amount_usdc: int
+    claim_error: str | None = None
+    retry_count: int = 0
+    last_retry_at: datetime | None = None
+    hunter_id: int | None = None
+    hunter_username: str | None = None
+    hunter_wallet: str | None = None
+    can_retry: bool = True
+    next_retry_available_at: datetime | None = None
+
+
+class BatchRetryResultOut(BaseModel):
+    total_failed: int
+    retried_count: int
+    succeeded_count: int
+    failed_count: int
+    results: list[dict]

@@ -131,6 +131,8 @@ class BountyModel(Base, TimestampMixin):
     tx_signature: Mapped[str | None] = mapped_column(String(128), nullable=True)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     claim_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     project: Mapped[ProjectModel] = relationship(back_populates="bounties")
     repository: Mapped[RepositoryModel | None] = relationship(back_populates="bounties")
@@ -145,6 +147,11 @@ class BountyModel(Base, TimestampMixin):
     )
     tracked_issue: Mapped["TrackedIssueModel | None"] = relationship(
         back_populates="bounty", uselist=False
+    )
+    audit_logs: Mapped[list["BountyAuditLogModel"]] = relationship(
+        back_populates="bounty",
+        cascade="all, delete-orphan",
+        order_by="BountyAuditLogModel.created_at.desc()",
     )
 
     @property
@@ -196,3 +203,24 @@ class WebhookDeliveryModel(Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class BountyAuditLogModel(Base, TimestampMixin):
+    """Trilha de auditoria para ações, aprovações, retentativas e reconciliações de bounties."""
+
+    __tablename__ = "bounty_audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    bounty_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("bounties.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    actor_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    action: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status_before: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status_after: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    detail: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+
+    bounty: Mapped[BountyModel] = relationship(back_populates="audit_logs")
+    actor: Mapped[UserModel | None] = relationship(foreign_keys=[actor_id])
