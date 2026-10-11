@@ -1,18 +1,28 @@
 import re
+import time
 from typing import Any
 
 import httpx
 
 from app.core.config import get_settings
+from app.core.exceptions import DomainError
 
 GITHUB_API = "https://api.github.com"
 
 _ISSUE_URL_RE = re.compile(r"github\.com/([\w.-]+)/([\w.-]+)/issues/(\d+)")
 _PR_URL_RE = re.compile(r"github\.com/([\w.-]+)/([\w.-]+)/pull/(\d+)")
 
+_ISSUES_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+ISSUES_CACHE_TTL_SECONDS = 60.0
 
-class GitHubServiceError(Exception):
-    pass
+
+def clear_issues_cache() -> None:
+    _ISSUES_CACHE.clear()
+
+
+class GitHubServiceError(DomainError):
+    def __init__(self, detail: str = "GitHub API error", status_code: int = 502):
+        super().__init__(status_code=status_code, detail=detail)
 
 
 def _auth_headers(access_token: str | None = None) -> dict[str, str]:
@@ -137,38 +147,88 @@ async def build_login_url(state: str | None = None) -> str:
 
 
 async def fetch_repository_issues(
-    owner: str, repo: str, access_token: str | None = None
+    owner: str,
+    repo: str,
+    state: str = "open",
+    access_token: str | None = None,
+    bypass_cache: bool = False,
+    per_page: int = 100,
 ) -> list[dict[str, Any]]:
-    """Fetch open issues from a GitHub repo, filtering out PRs and excluding comments."""
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(
-            f"{GITHUB_API}/repos/{owner}/{repo}/issues?state=open&per_page=100",
-            headers=_auth_headers(access_token),
-        )
-    if resp.status_code != 200:
-        return []
+    """
+    Fetch issues from a GitHub repo, paginating results, filtering out PRs,
+    and caching public listings.
+    """
+    cache_key = f"{owner.lower()}/{repo.lower()}:{state}"
+    now = time.monotonic()
+    if not bypass_cache and access_token is None:
+        if cache_key in _ISSUES_CACHE:
+            cached_time, cached_data = _ISSUES_CACHE[cache_key]
+            if now - cached_time < ISSUES_CACHE_TTL_SECONDS:
+                return cached_data
 
-    data = resp.json()
     issues: list[dict[str, Any]] = []
-    for item in data:
-        # GitHub /issues endpoint also returns pull requests; filter them out
-        if "pull_request" in item:
-            continue
+    page = 1
+    max_pages = 50
 
-        raw_labels = item.get("labels", [])
-        labels = [lbl["name"] if isinstance(lbl, dict) else str(lbl) for lbl in raw_labels]
+    async with httpx.AsyncClient(timeout=15) as client:
+        while page <= max_pages:
+            try:
+                resp = await client.get(
+                    f"{GITHUB_API}/repos/{owner}/{repo}/issues",
+                    params={"state": state, "per_page": per_page, "page": page},
+                    headers=_auth_headers(access_token),
+                )
+            except httpx.HTTPError as err:
+                raise GitHubServiceError(
+                    f"Failed to communicate with GitHub: {err}", status_code=502
+                ) from err
 
-        issues.append(
-            {
-                "number": item["number"],
-                "title": item.get("title", ""),
-                "body": item.get("body"),
-                "html_url": item["html_url"],
-                "state": item.get("state", "open"),
-                "author_username": item.get("user", {}).get("login"),
-                "labels": labels,
-            }
-        )
+            if resp.status_code == 404:
+                raise GitHubServiceError(
+                    f"GitHub repository {owner}/{repo} not found", status_code=404
+                )
+            if resp.status_code in (403, 429):
+                raise GitHubServiceError(
+                    f"GitHub API rate limit exceeded ({resp.status_code})", status_code=429
+                )
+            if resp.status_code != 200:
+                raise GitHubServiceError(
+                    f"GitHub API returned error {resp.status_code}: {resp.text}",
+                    status_code=502,
+                )
+
+            data = resp.json()
+            if not isinstance(data, list):
+                raise GitHubServiceError("Unexpected GitHub response format", status_code=502)
+
+            for item in data:
+                # GitHub /issues endpoint also returns pull requests; filter them out
+                if "pull_request" in item:
+                    continue
+
+                raw_labels = item.get("labels", [])
+                labels = [lbl["name"] if isinstance(lbl, dict) else str(lbl) for lbl in raw_labels]
+                author_login = item.get("user", {}).get("login") if item.get("user") else None
+
+                issues.append(
+                    {
+                        "number": item["number"],
+                        "title": item.get("title", ""),
+                        "body": item.get("body"),
+                        "html_url": item["html_url"],
+                        "state": item.get("state", state),
+                        "author_username": author_login,
+                        "labels": labels,
+                    }
+                )
+
+            if len(data) < per_page:
+                break
+            page += 1
+
+    if access_token is None:
+        _ISSUES_CACHE[cache_key] = (now, issues)
+
     return issues
 
 
@@ -176,11 +236,15 @@ async def fetch_issue_details(
     owner: str, repo: str, number: int, access_token: str | None = None
 ) -> dict[str, Any] | None:
     """Fetch details of a single GitHub issue without comments."""
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(
-            f"{GITHUB_API}/repos/{owner}/{repo}/issues/{number}",
-            headers=_auth_headers(access_token),
-        )
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{GITHUB_API}/repos/{owner}/{repo}/issues/{number}",
+                headers=_auth_headers(access_token),
+            )
+    except httpx.HTTPError:
+        return None
+
     if resp.status_code != 200:
         return None
 
@@ -197,7 +261,7 @@ async def fetch_issue_details(
         "body": item.get("body"),
         "html_url": item["html_url"],
         "state": item.get("state", "open"),
-        "author_username": item.get("user", {}).get("login"),
+        "author_username": item.get("user", {}).get("login") if item.get("user") else None,
         "labels": labels,
     }
 
@@ -206,11 +270,15 @@ async def fetch_repository_details(
     owner: str, repo: str, access_token: str | None = None
 ) -> dict[str, Any] | None:
     """Fetch live metadata of a GitHub repository from the REST API."""
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(
-            f"{GITHUB_API}/repos/{owner}/{repo}",
-            headers=_auth_headers(access_token),
-        )
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{GITHUB_API}/repos/{owner}/{repo}",
+                headers=_auth_headers(access_token),
+            )
+    except httpx.HTTPError:
+        return None
+
     if resp.status_code != 200:
         return None
 

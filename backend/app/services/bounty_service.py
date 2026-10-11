@@ -636,6 +636,7 @@ async def sync_repository_issues_from_github(
         owner=repo.github_owner,
         repo=repo.github_name,
         state="open",
+        bypass_cache=True,
     )
 
     synced_count = 0
@@ -657,7 +658,9 @@ async def sync_repository_issues_from_github(
 
         raw_labels = issue.get("labels", [])
         label_names = [item["name"] if isinstance(item, dict) else str(item) for item in raw_labels]
-        author = issue.get("user", {}).get("login") if issue.get("user") else None
+        author = issue.get("author_username") or (
+            issue.get("user", {}).get("login") if isinstance(issue.get("user"), dict) else None
+        )
         html_url = issue.get(
             "html_url",
             f"https://github.com/{repo.github_repo}/issues/{issue_number}",
@@ -684,6 +687,8 @@ async def sync_repository_issues_from_github(
                 existing.body = issue.get("body")
             existing.state = issue.get("state", existing.state)
             existing.labels = json.dumps(label_names)
+            if author:
+                existing.author_username = author
 
         synced_count += 1
 
