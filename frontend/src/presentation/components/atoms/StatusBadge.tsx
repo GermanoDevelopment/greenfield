@@ -17,7 +17,6 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
 
   switch (status) {
     case 'OPEN_FOR_PROPOSALS':
-    case 'FUNDED':
       return (
         <span
           className={`inline-flex items-center gap-1.5 rounded-full bg-violet-950/40 text-violet-300 border border-violet-800/60 font-medium ${sizeClasses}`}
@@ -27,14 +26,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
         </span>
       );
 
-    case 'IN_PROGRESS':
     case 'ASSIGNED':
       return (
         <span
           className={`inline-flex items-center gap-1.5 rounded-full bg-amber-950/40 text-amber-300 border border-amber-800/60 ${sizeClasses}`}
         >
           <Loader2 className={`${iconSize} animate-spin text-amber-400`} />
-          <span>{status === 'ASSIGNED' ? 'Atribuído' : 'In Progress'}</span>
+          <span>Atribuído</span>
         </span>
       );
 
@@ -70,7 +68,6 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
 
     case 'CANCELLED':
     case 'CLAIM_FAILED':
-    case 'VERIFICATION_FAILED':
       return (
         <span
           className={`inline-flex items-center gap-1.5 rounded-full bg-rose-950/40 text-rose-300 border border-rose-800/60 ${sizeClasses}`}

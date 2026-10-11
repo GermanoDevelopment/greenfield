@@ -14,7 +14,7 @@ export const MyContributionsPage: React.FC = () => {
 
   const filtered = myBounties.filter((b) => {
     if (filter === 'ALL') return true;
-    if (filter === 'IN_PROGRESS') return b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED' || b.status === 'PR_OPEN';
+    if (filter === 'IN_PROGRESS') return b.status === 'ASSIGNED' || b.status === 'PR_OPEN';
     if (filter === 'CLAIMABLE') return b.status === 'CLAIMABLE';
     if (filter === 'CLAIMED') return b.status === 'CLAIMED';
     return true;

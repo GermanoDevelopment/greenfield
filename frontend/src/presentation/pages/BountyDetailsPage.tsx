@@ -461,8 +461,8 @@ export const BountyDetailsPage: React.FC = () => {
         )}
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          {/* 1. Abrir PR (se ASSIGNED ou IN_PROGRESS) */}
-          {(bounty.status === 'ASSIGNED' || bounty.status === 'IN_PROGRESS') && (
+          {/* 1. Abrir PR (se ASSIGNED) */}
+          {bounty.status === 'ASSIGNED' && (
             <DesygenButton
               variant="primary"
               size="md"

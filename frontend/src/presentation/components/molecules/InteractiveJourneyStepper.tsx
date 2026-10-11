@@ -31,9 +31,9 @@ interface StepDetail {
 const JOURNEY_STEPS: StepDetail[] = [
   {
     step: 1,
-    title: 'Criação & Financiamento da Issue',
-    shortLabel: '1. Issue Financiada',
-    status: 'FUNDED',
+    title: 'Criação & Abertura de Propostas',
+    shortLabel: '1. Propostas Abertas',
+    status: 'OPEN_FOR_PROPOSALS',
     githubAction: 'Mantenedor seleciona Issue #123 no repositório GitHub',
     backendAction: 'Cria registro da bounty com 5.000 pontos contábeis',
     solanaAction: 'Verifica solvência do Tesouro e reserva $50 USDC do pool',
