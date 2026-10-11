@@ -194,6 +194,12 @@ class BountyOut(BaseModel):
     claim_error: str | None = Field(
         default=None, description="Motivo da falha do pagamento (status CLAIM_FAILED)"
     )
+    retry_count: int = Field(
+        default=0, description="Número de retentativas de aprovação/pagamento executadas"
+    )
+    last_retry_at: datetime | None = Field(
+        default=None, description="Data e hora da última retentativa de aprovação/pagamento"
+    )
     created_at: datetime = Field(description="Data de criação da bounty")
     updated_at: datetime = Field(description="Data da última modificação")
     issuer: UserPublicOut | None = Field(default=None, description="Dados do mantenedor")
@@ -208,6 +214,19 @@ class BountyOut(BaseModel):
     @classmethod
     def url_to_str(cls, v):
         return str(v) if v is not None else None
+
+
+class BountyAuditLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    bounty_id: int
+    action: str
+    status_before: str | None = None
+    status_after: str | None = None
+    detail: str | None = None
+    actor_id: int | None = None
+    created_at: datetime
 
 
 class BountyStatusOut(BaseModel):

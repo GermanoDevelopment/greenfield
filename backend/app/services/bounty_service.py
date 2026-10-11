@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.db.base import (
     BountyApplicantModel,
+    BountyAuditLogModel,
     BountyModel,
     ProjectModel,
     RepositoryModel,
@@ -19,6 +20,28 @@ from app.schemas.bounty import BOUNTY_TRANSITIONS, BountyStatus
 from app.services import github_service, solana_service
 
 logger = logging.getLogger("greenfield.bounty_service")
+
+
+async def record_audit_log(
+    session: AsyncSession,
+    bounty: BountyModel,
+    actor: UserModel | None,
+    action: str,
+    status_before: str | None = None,
+    status_after: str | None = None,
+    detail: str | None = None,
+) -> BountyAuditLogModel:
+    """Registra uma entrada imutável na trilha de auditoria da bounty."""
+    log_entry = BountyAuditLogModel(
+        bounty_id=bounty.id,
+        actor_id=actor.id if actor else None,
+        action=action,
+        status_before=status_before,
+        status_after=status_after,
+        detail=detail[:1024] if detail else None,
+    )
+    session.add(log_entry)
+    return log_entry
 
 
 async def get_bounty(session: AsyncSession, bounty_id: int) -> BountyModel:
@@ -282,10 +305,43 @@ async def accept_bounty_applicant(
     _transition(bounty, BountyStatus.ASSIGNED)
     bounty.hunter_id = applicant.user_id
 
-    if solana_service.is_onchain_enabled() and applicant.user and applicant.user.wallet:
-        await _run_onchain_or_rollback(
+    if solana_service.is_onchain_enabled():
+        if applicant.user and applicant.user.wallet:
+            await _run_onchain_or_rollback(
+                session,
+                lambda: solana_service.assign_developer_onchain(bounty.id, applicant.user.wallet),
+            )
+            await record_audit_log(
+                session,
+                bounty,
+                actor,
+                "ACCEPT_APPLICANT",
+                BountyStatus.OPEN.value,
+                BountyStatus.ASSIGNED.value,
+                f"Assigned developer {applicant.user.wallet} on-chain",
+            )
+        else:
+            await record_audit_log(
+                session,
+                bounty,
+                actor,
+                "ACCEPT_APPLICANT_DEFERRED_WALLET",
+                BountyStatus.OPEN.value,
+                BountyStatus.ASSIGNED.value,
+                (
+                    f"Applicant {applicant.user_id} accepted without wallet; "
+                    "on-chain assignment deferred until wallet connection"
+                ),
+            )
+    else:
+        await record_audit_log(
             session,
-            lambda: solana_service.assign_developer_onchain(bounty.id, applicant.user.wallet),
+            bounty,
+            actor,
+            "ACCEPT_APPLICANT",
+            BountyStatus.OPEN.value,
+            BountyStatus.ASSIGNED.value,
+            f"Applicant {applicant.user_id} accepted",
         )
 
     await session.commit()
@@ -423,22 +479,72 @@ async def complete_bounty(
     if solana_service.is_onchain_enabled():
         # Escrow mode, Invariant 1: approve_claim unlocks the developer's own claim
         # transaction; the bounty becomes CLAIMED when that claim is reported.
-        await _run_onchain_or_rollback(
-            session,
-            lambda: solana_service.approve_claim_onchain(bounty.id),
-        )
+        if hunter.wallet:
+            try:
+                await solana_service.assign_developer_onchain(bounty.id, hunter.wallet)
+            except Exception as e:
+                logger.debug("assign_developer_onchain during complete: %s", e)
+        else:
+            # Hunter has no wallet: move to CLAIM_FAILED with clear reason
+            _transition(bounty, BountyStatus.CLAIM_FAILED)
+            bounty.claim_error = (
+                "Hunter has no registered Solana wallet for on-chain claim approval"
+            )
+            await record_audit_log(
+                session,
+                bounty,
+                actor,
+                "APPROVAL_FAILED",
+                BountyStatus.CLAIMABLE.value,
+                BountyStatus.CLAIM_FAILED.value,
+                bounty.claim_error,
+            )
+            await session.commit()
+            await session.refresh(bounty)
+            return bounty
+
+        try:
+            await solana_service.approve_claim_onchain(bounty.id)
+            bounty.claim_error = None
+            await record_audit_log(
+                session,
+                bounty,
+                actor,
+                "APPROVAL_SUCCESS",
+                BountyStatus.SUBMITTED.value,
+                BountyStatus.CLAIMABLE.value,
+                "On-chain claim approval confirmed",
+            )
+        except Exception as e:
+            logger.exception("On-chain claim approval failed for bounty %s", bounty.id)
+            _transition(bounty, BountyStatus.CLAIM_FAILED)
+            bounty.claim_error = (str(e) or type(e).__name__)[:512]
+            await record_audit_log(
+                session,
+                bounty,
+                actor,
+                "APPROVAL_FAILED",
+                BountyStatus.CLAIMABLE.value,
+                BountyStatus.CLAIM_FAILED.value,
+                bounty.claim_error,
+            )
         await session.commit()
     else:
         # Custodial mode: record CLAIMABLE first, so the verified merge survives
         # whatever happens to the payment, then try to pay.
         await session.commit()
-        await _pay_custodial(session, bounty, hunter)
+        await _pay_custodial(session, bounty, hunter, actor=actor)
 
     await session.refresh(bounty)
     return bounty
 
 
-async def _pay_custodial(session: AsyncSession, bounty: BountyModel, hunter: UserModel) -> None:
+async def _pay_custodial(
+    session: AsyncSession,
+    bounty: BountyModel,
+    hunter: UserModel,
+    actor: UserModel | None = None,
+) -> None:
     """Paga do tesouro e move CLAIMABLE -> CLAIMED, ou -> CLAIM_FAILED com o motivo.
 
     Sem carteira do hunter ou sem tesouro configurado, nada é tentado e a bounty
@@ -455,11 +561,29 @@ async def _pay_custodial(session: AsyncSession, bounty: BountyModel, hunter: Use
         logger.exception("Custodial payout failed for bounty %s", bounty.id)
         _transition(bounty, BountyStatus.CLAIM_FAILED)
         bounty.claim_error = (str(e) or type(e).__name__)[:512]
+        await record_audit_log(
+            session,
+            bounty,
+            actor or hunter,
+            "PAYOUT_FAILED",
+            BountyStatus.CLAIMABLE.value,
+            BountyStatus.CLAIM_FAILED.value,
+            bounty.claim_error,
+        )
     else:
         _transition(bounty, BountyStatus.CLAIMED)
         bounty.tx_signature = tx_sig
         bounty.claimed_at = datetime.now(UTC)
         bounty.claim_error = None
+        await record_audit_log(
+            session,
+            bounty,
+            actor or hunter,
+            "PAYOUT_SUCCESS",
+            BountyStatus.CLAIMABLE.value,
+            BountyStatus.CLAIMED.value,
+            f"Custodial payout confirmed tx: {tx_sig}",
+        )
     await session.commit()
 
 
@@ -789,3 +913,312 @@ async def assign_reward_to_tracked_issue(
     await session.commit()
     await session.refresh(bounty)
     return bounty
+
+
+def _as_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def get_retry_backoff_seconds(retry_count: int) -> int:
+    """Calcula o intervalo de espera exponencial em segundos para retentativas:
+
+    - 0 retries: 0s (imediato)
+    - 1 retry: 5s
+    - 2 retries: 15s
+    - 3 retries: 45s
+    - 4+ retries: min(300, 45 * 2 ** (retry_count - 3))
+    """
+    if retry_count <= 0:
+        return 0
+    if retry_count == 1:
+        return 5
+    if retry_count == 2:
+        return 15
+    if retry_count == 3:
+        return 45
+    return min(300, 45 * (2 ** min(retry_count - 3, 4)))
+
+
+async def retry_bounty_payout_or_approval(
+    session: AsyncSession,
+    bounty: BountyModel,
+    actor: UserModel,
+    force: bool = False,
+) -> BountyModel:
+    """Retenta uma aprovação on-chain ou liquidação custodial que falhou anteriormente.
+
+    Aplica backoff exponencial para evitar sobrecarga e mantém trilha de auditoria completa.
+    """
+    if bounty.issuer_id != actor.id and bounty.hunter_id != actor.id and actor.role != "ADMIN":
+        raise ForbiddenError("Only the issuer, assigned hunter, or an admin can retry this bounty")
+
+    if bounty.status not in (BountyStatus.CLAIM_FAILED.value, BountyStatus.CLAIMABLE.value):
+        raise ConflictError(f"Cannot retry bounty with status {bounty.status}")
+
+    # Verificar backoff se não for admin e não for forçado
+    if not force and actor.role != "ADMIN" and bounty.last_retry_at is not None:
+        required_backoff = get_retry_backoff_seconds(bounty.retry_count)
+        last_retry = _as_utc(bounty.last_retry_at)
+        elapsed = (datetime.now(UTC) - last_retry).total_seconds()
+        if elapsed < required_backoff:
+            wait_sec = int(required_backoff - elapsed)
+            raise ConflictError(
+                f"Retry rate limited by backoff. Please wait {wait_sec}s before retrying."
+            )
+
+    hunter = await session.get(UserModel, bounty.hunter_id) if bounty.hunter_id else None
+    if hunter is None:
+        raise ConflictError("Bounty has no assigned hunter")
+
+    bounty.retry_count += 1
+    bounty.last_retry_at = datetime.now(UTC)
+    status_before = bounty.status
+
+    await record_audit_log(
+        session,
+        bounty,
+        actor,
+        "RETRY_ATTEMPT",
+        status_before,
+        bounty.status,
+        f"Retry attempt #{bounty.retry_count}",
+    )
+
+    if bounty.status == BountyStatus.CLAIM_FAILED.value:
+        _transition(bounty, BountyStatus.CLAIMABLE)
+
+    if solana_service.is_onchain_enabled():
+        # Modo Escrow: valida carteira, assegura developer on-chain e aprova claim
+        if not hunter.wallet:
+            _transition(bounty, BountyStatus.CLAIM_FAILED)
+            bounty.claim_error = "Hunter has no registered Solana wallet"
+            await record_audit_log(
+                session,
+                bounty,
+                actor,
+                "RETRY_FAILED",
+                BountyStatus.CLAIMABLE.value,
+                BountyStatus.CLAIM_FAILED.value,
+                bounty.claim_error,
+            )
+            await session.commit()
+            await session.refresh(bounty)
+            return bounty
+
+        try:
+            await solana_service.assign_developer_onchain(bounty.id, hunter.wallet)
+        except Exception as e:
+            logger.debug("assign_developer_onchain during retry: %s", e)
+
+        try:
+            await solana_service.approve_claim_onchain(bounty.id)
+            bounty.claim_error = None
+            await record_audit_log(
+                session,
+                bounty,
+                actor,
+                "RETRY_SUCCESS",
+                BountyStatus.CLAIMABLE.value,
+                BountyStatus.CLAIMABLE.value,
+                "On-chain approval succeeded on retry",
+            )
+        except Exception as e:
+            logger.exception("On-chain approval retry failed for bounty %s", bounty.id)
+            _transition(bounty, BountyStatus.CLAIM_FAILED)
+            bounty.claim_error = (str(e) or type(e).__name__)[:512]
+            await record_audit_log(
+                session,
+                bounty,
+                actor,
+                "RETRY_FAILED",
+                BountyStatus.CLAIMABLE.value,
+                BountyStatus.CLAIM_FAILED.value,
+                bounty.claim_error,
+            )
+        await session.commit()
+    else:
+        # Modo Custodial: tenta pagamento do tesouro
+        await session.commit()
+        await _pay_custodial(session, bounty, hunter, actor=actor)
+
+    await session.refresh(bounty)
+    return bounty
+
+
+async def reconcile_hunter_wallet(
+    session: AsyncSession,
+    hunter: UserModel,
+    old_wallet: str | None = None,
+) -> list[BountyModel]:
+    """Reconcilia automaticamente bounties ativas do caçador após atualização de carteira."""
+    if not hunter.wallet:
+        return []
+
+    stmt = select(BountyModel).where(
+        BountyModel.hunter_id == hunter.id,
+        BountyModel.status.in_(
+            [
+                BountyStatus.ASSIGNED.value,
+                BountyStatus.SUBMITTED.value,
+                BountyStatus.CLAIMABLE.value,
+                BountyStatus.CLAIM_FAILED.value,
+            ]
+        ),
+    )
+    result = await session.execute(stmt)
+    bounties = list(result.scalars().all())
+
+    reconciled: list[BountyModel] = []
+    for bounty in bounties:
+        if solana_service.is_onchain_enabled():
+            try:
+                await solana_service.assign_developer_onchain(bounty.id, hunter.wallet)
+                await record_audit_log(
+                    session,
+                    bounty,
+                    hunter,
+                    "WALLET_LINK_ASSIGNED_ONCHAIN",
+                    bounty.status,
+                    bounty.status,
+                    f"Assigned developer wallet {hunter.wallet} on-chain after wallet update",
+                )
+            except Exception as e:
+                logger.info("Could not assign developer on-chain for bounty %s: %s", bounty.id, e)
+
+        if bounty.status == BountyStatus.CLAIM_FAILED.value:
+            try:
+                await retry_bounty_payout_or_approval(session, bounty, hunter, force=True)
+            except Exception as e:
+                logger.info("Auto-retry on wallet update for bounty %s failed: %s", bounty.id, e)
+        elif (
+            bounty.status == BountyStatus.CLAIMABLE.value
+            and not solana_service.is_onchain_enabled()
+            and solana_service.is_custodial_enabled()
+        ):
+            await _pay_custodial(session, bounty, hunter, actor=hunter)
+
+        reconciled.append(bounty)
+
+    await session.commit()
+    return reconciled
+
+
+async def get_failed_approvals_for_admin(session: AsyncSession) -> list[dict]:
+    """Retorna lista consolidada de bounties com falha para moderação e diagnóstico."""
+    stmt = (
+        select(BountyModel)
+        .where(BountyModel.status == BountyStatus.CLAIM_FAILED.value)
+        .options(
+            selectinload(BountyModel.hunter),
+            selectinload(BountyModel.project),
+        )
+        .order_by(BountyModel.updated_at.desc())
+    )
+    result = await session.execute(stmt)
+    bounties = list(result.scalars().all())
+
+    now = datetime.now(UTC)
+    items = []
+    for b in bounties:
+        backoff = get_retry_backoff_seconds(b.retry_count)
+        last_retry = _as_utc(b.last_retry_at)
+        elapsed = (now - last_retry).total_seconds() if last_retry else backoff + 1
+        can_retry = elapsed >= backoff
+        next_avail = (
+            last_retry + timedelta(seconds=backoff) if (last_retry and not can_retry) else None
+        )
+        items.append(
+            {
+                "bounty_id": b.id,
+                "project_id": b.project_id,
+                "issue_url": b.issue_url,
+                "issue_title": b.issue_title,
+                "status": b.status,
+                "amount_usdc": b.amount_usdc,
+                "claim_error": b.claim_error,
+                "retry_count": b.retry_count,
+                "last_retry_at": b.last_retry_at,
+                "hunter_id": b.hunter_id,
+                "hunter_username": b.hunter.username if b.hunter else None,
+                "hunter_wallet": b.hunter.wallet if b.hunter else None,
+                "can_retry": can_retry,
+                "next_retry_available_at": next_avail,
+            }
+        )
+    return items
+
+
+async def batch_retry_failed_bounties(
+    session: AsyncSession,
+    actor: UserModel,
+    force: bool = False,
+) -> dict:
+    """Executa retentativa em lote para todas as bounties em CLAIM_FAILED."""
+    stmt = (
+        select(BountyModel)
+        .where(BountyModel.status == BountyStatus.CLAIM_FAILED.value)
+        .options(selectinload(BountyModel.hunter))
+    )
+    result = await session.execute(stmt)
+    failed_bounties = list(result.scalars().all())
+
+    total = len(failed_bounties)
+    retried = 0
+    succeeded = 0
+    failed = 0
+    results = []
+
+    now = datetime.now(UTC)
+    for b in failed_bounties:
+        backoff = get_retry_backoff_seconds(b.retry_count)
+        last_retry = _as_utc(b.last_retry_at)
+        elapsed = (now - last_retry).total_seconds() if last_retry else backoff + 1
+        if not force and elapsed < backoff:
+            results.append(
+                {
+                    "bounty_id": b.id,
+                    "status": "SKIPPED_BACKOFF",
+                    "reason": f"Waiting {int(backoff - elapsed)}s for backoff",
+                }
+            )
+            continue
+
+        retried += 1
+        try:
+            updated = await retry_bounty_payout_or_approval(session, b, actor, force=force)
+            if updated.status in (BountyStatus.CLAIMABLE.value, BountyStatus.CLAIMED.value):
+                succeeded += 1
+                results.append(
+                    {"bounty_id": b.id, "status": "SUCCESS", "new_status": updated.status}
+                )
+            else:
+                failed += 1
+                results.append(
+                    {"bounty_id": b.id, "status": "FAILED", "error": updated.claim_error}
+                )
+        except Exception as e:
+            failed += 1
+            results.append({"bounty_id": b.id, "status": "ERROR", "error": str(e)})
+
+    return {
+        "total_failed": total,
+        "retried_count": retried,
+        "succeeded_count": succeeded,
+        "failed_count": failed,
+        "results": results,
+    }
+
+
+async def get_bounty_audit_logs(session: AsyncSession, bounty_id: int) -> list[BountyAuditLogModel]:
+    """Retorna todas as entradas da trilha de auditoria para uma bounty em ordem decrescente."""
+    stmt = (
+        select(BountyAuditLogModel)
+        .where(BountyAuditLogModel.bounty_id == bounty_id)
+        .order_by(BountyAuditLogModel.created_at.desc())
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())

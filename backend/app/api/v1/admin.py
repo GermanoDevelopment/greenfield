@@ -10,6 +10,8 @@ from app.schemas.admin import (
     AdminProjectCreate,
     AdminProjectOut,
     AdminStatsOut,
+    BatchRetryResultOut,
+    FailedBountyApprovalOut,
     ReviewSubmissionRequest,
 )
 from app.schemas.bounty import BountyOut, BountyStatus
@@ -369,3 +371,36 @@ async def review_bounty_submission(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid action. Must be 'APPROVE' or 'REJECT'.",
         )
+
+
+@router.get(
+    "/failed-approvals",
+    response_model=list[FailedBountyApprovalOut],
+    summary="Listar bounties com falha de aprovação ou liquidação para reconciliação",
+)
+async def admin_list_failed_approvals(
+    _admin: CurrentAdminUser,
+    db: DbSession,
+) -> list[dict]:
+    """
+    Retorna todas as bounties em estado CLAIM_FAILED ou pendentes de aprovação,
+    com detalhes do erro, contagem de retries e elegibilidade para backoff.
+    """
+    return await bounty_service.get_failed_approvals_for_admin(db)
+
+
+@router.post(
+    "/retry-failed-approvals",
+    response_model=BatchRetryResultOut,
+    summary="Disparar retentativa em lote para bounties com falha elegíveis",
+)
+async def admin_retry_failed_approvals(
+    admin: CurrentAdminUser,
+    db: DbSession,
+    force: bool = False,
+) -> dict:
+    """
+    Executa a reconciliação e retentativa em lote de todas as bounties em CLAIM_FAILED
+    que já cumpriram o período de backoff (ou todas se force=True).
+    """
+    return await bounty_service.batch_retry_failed_bounties(db, actor=admin, force=force)

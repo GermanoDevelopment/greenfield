@@ -1,11 +1,12 @@
-import axios, { type AxiosResponse } from 'axios';
+import axios, { type AxiosResponse } from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
   timeout: 10000,
 });
@@ -13,16 +14,16 @@ export const apiClient = axios.create({
 // Suporte a Token JWT
 export function setAuthToken(token: string | null) {
   if (token) {
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     try {
-      localStorage.setItem('greenfield_jwt', token);
+      localStorage.setItem("greenfield_jwt", token);
     } catch {
       // Ignora erro se localStorage estiver bloqueado
     }
   } else {
-    delete apiClient.defaults.headers.common['Authorization'];
+    delete apiClient.defaults.headers.common["Authorization"];
     try {
-      localStorage.removeItem('greenfield_jwt');
+      localStorage.removeItem("greenfield_jwt");
     } catch {
       // Ignora erro
     }
@@ -31,9 +32,9 @@ export function setAuthToken(token: string | null) {
 
 // Inicializa token se já salvo
 try {
-  const savedToken = localStorage.getItem('greenfield_jwt');
+  const savedToken = localStorage.getItem("greenfield_jwt");
   if (savedToken) {
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
+    apiClient.defaults.headers.common["Authorization"] = `Bearer ${savedToken}`;
   }
 } catch {
   // Ignora
@@ -53,7 +54,7 @@ export interface ApiUserOut {
   email?: string | null;
   avatar_url: string | null;
   wallet: string | null;
-  role: 'ADMIN' | 'MAINTAINER' | 'CONTRIBUTOR';
+  role: "ADMIN" | "MAINTAINER" | "CONTRIBUTOR";
   created_at: string;
 }
 
@@ -104,7 +105,7 @@ export interface ApiBountyApplicantOut {
   bounty_id: number;
   user_id: number;
   proposal: string | null;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status: "PENDING" | "ACCEPTED" | "REJECTED";
   created_at: string;
   user?: ApiUserOut;
 }
@@ -122,18 +123,20 @@ export interface ApiBountyOut {
   amount_usdc: number;
   points: number;
   status:
-    | 'OPEN'
-    | 'ASSIGNED'
-    | 'SUBMITTED'
-    | 'CLAIMABLE'
-    | 'CLAIMED'
-    | 'CLAIM_FAILED'
-    | 'CANCELLED';
+    | "OPEN"
+    | "ASSIGNED"
+    | "SUBMITTED"
+    | "CLAIMABLE"
+    | "CLAIMED"
+    | "CLAIM_FAILED"
+    | "CANCELLED";
   escrow_pda: string | null;
   pr_url: string | null;
   tx_signature: string | null;
   claimed_at: string | null;
   claim_error?: string | null;
+  retry_count?: number;
+  last_retry_at?: string | null;
   created_at: string;
   issuer?: ApiUserOut;
   hunter?: ApiUserOut;
@@ -194,20 +197,26 @@ export interface AdminStatsOut {
 }
 
 export interface ReviewSubmissionPayload {
-  action: 'APPROVE' | 'REJECT';
+  action: "APPROVE" | "REJECT";
   reason?: string;
 }
 
 export const greenfieldApi = {
   // Health
   getHealth: async (): Promise<HealthOut> => {
-    const response = await apiClient.get<HealthOut>('/health');
+    const response = await apiClient.get<HealthOut>("/health");
     return response.data;
   },
 
   // Auth & Users
-  login: async (data: { email: string; password: string }): Promise<ApiTokenResponse> => {
-    const response = await apiClient.post<ApiTokenResponse>('/auth/login', data);
+  login: async (data: {
+    email: string;
+    password: string;
+  }): Promise<ApiTokenResponse> => {
+    const response = await apiClient.post<ApiTokenResponse>(
+      "/auth/login",
+      data,
+    );
     setAuthToken(response.data.access_token);
     return response.data;
   },
@@ -216,7 +225,10 @@ export const greenfieldApi = {
     password: string;
     username?: string;
   }): Promise<ApiTokenResponse> => {
-    const response = await apiClient.post<ApiTokenResponse>('/auth/register', data);
+    const response = await apiClient.post<ApiTokenResponse>(
+      "/auth/register",
+      data,
+    );
     setAuthToken(response.data.access_token);
     return response.data;
   },
@@ -224,60 +236,89 @@ export const greenfieldApi = {
     setAuthToken(null);
   },
   getGithubLoginUrl: (state?: string): string => {
-    const params = state ? `?state=${encodeURIComponent(state)}` : '';
+    const params = state ? `?state=${encodeURIComponent(state)}` : "";
     return `${API_BASE_URL}/auth/github/login${params}`;
   },
   getAuthConfig: async (): Promise<{ github_oauth_configured: boolean }> => {
-    const response = await apiClient.get<{ github_oauth_configured: boolean }>('/auth/config');
+    const response = await apiClient.get<{ github_oauth_configured: boolean }>(
+      "/auth/config",
+    );
     return response.data;
   },
-  devLogin: async (username: string): Promise<{ access_token: string; user: ApiUserOut }> => {
-    const response = await apiClient.post<{ access_token: string; user: ApiUserOut }>('/auth/dev-login', { username });
+  devLogin: async (
+    username: string,
+  ): Promise<{ access_token: string; user: ApiUserOut }> => {
+    const response = await apiClient.post<{
+      access_token: string;
+      user: ApiUserOut;
+    }>("/auth/dev-login", { username });
     if (response.data.access_token) {
       setAuthToken(response.data.access_token);
     }
     return response.data;
   },
   getMe: async (): Promise<ApiUserOut> => {
-    const response = await apiClient.get<ApiUserOut>('/auth/me');
+    const response = await apiClient.get<ApiUserOut>("/auth/me");
     return response.data;
   },
   updateWallet: async (wallet: string): Promise<ApiUserOut> => {
-    const response = await apiClient.patch<ApiUserOut>('/users/me', { wallet });
+    const response = await apiClient.patch<ApiUserOut>("/users/me", { wallet });
     return response.data;
   },
   listUsers: async (): Promise<ApiUserOut[]> => {
-    const response = await apiClient.get<ApiUserOut[]>('/users');
+    const response = await apiClient.get<ApiUserOut[]>("/users");
     return response.data;
   },
 
   // Projects & Repositories
   listProjects: async (ownerId?: number): Promise<ApiProjectOut[]> => {
     const params = ownerId !== undefined ? { owner_id: ownerId } : {};
-    const response = await apiClient.get<ApiProjectOut[]>('/projects', { params });
+    const response = await apiClient.get<ApiProjectOut[]>("/projects", {
+      params,
+    });
     return response.data;
   },
   getProject: async (projectId: number): Promise<ApiProjectOut> => {
-    const response = await apiClient.get<ApiProjectOut>(`/projects/${projectId}`);
+    const response = await apiClient.get<ApiProjectOut>(
+      `/projects/${projectId}`,
+    );
     return response.data;
   },
-  createProject: async (data: { github_repo: string; description?: string }): Promise<ApiProjectOut> => {
-    const response = await apiClient.post<ApiProjectOut>('/projects', data);
+  createProject: async (data: {
+    github_repo: string;
+    description?: string;
+  }): Promise<ApiProjectOut> => {
+    const response = await apiClient.post<ApiProjectOut>("/projects", data);
     return response.data;
   },
-  listProjectRepositories: async (projectId: number): Promise<ApiRepositoryOut[]> => {
-    const response = await apiClient.get<ApiRepositoryOut[]>(`/projects/${projectId}/repositories`);
+  listProjectRepositories: async (
+    projectId: number,
+  ): Promise<ApiRepositoryOut[]> => {
+    const response = await apiClient.get<ApiRepositoryOut[]>(
+      `/projects/${projectId}/repositories`,
+    );
     return response.data;
   },
   addRepository: async (
     projectId: number,
-    data: { github_repo: string; description?: string; default_branch?: string }
+    data: {
+      github_repo: string;
+      description?: string;
+      default_branch?: string;
+    },
   ): Promise<ApiRepositoryOut> => {
-    const response = await apiClient.post<ApiRepositoryOut>(`/projects/${projectId}/repositories`, data);
+    const response = await apiClient.post<ApiRepositoryOut>(
+      `/projects/${projectId}/repositories`,
+      data,
+    );
     return response.data;
   },
-  listRepositoryIssues: async (repositoryId: number): Promise<ApiGitHubIssueOut[]> => {
-    const response = await apiClient.get<ApiGitHubIssueOut[]>(`/repositories/${repositoryId}/issues`);
+  listRepositoryIssues: async (
+    repositoryId: number,
+  ): Promise<ApiGitHubIssueOut[]> => {
+    const response = await apiClient.get<ApiGitHubIssueOut[]>(
+      `/repositories/${repositoryId}/issues`,
+    );
     return response.data;
   },
 
@@ -292,12 +333,11 @@ export const greenfieldApi = {
     const bounties: ApiBountyOut[] = [];
     let offset: number | undefined = 0;
     while (offset !== undefined) {
-      const response: AxiosResponse<ApiBountyOut[]> = await apiClient.get<ApiBountyOut[]>(
-        '/bounties',
-        { params: { ...params, limit: 500, offset } }
-      );
+      const response: AxiosResponse<ApiBountyOut[]> = await apiClient.get<
+        ApiBountyOut[]
+      >("/bounties", { params: { ...params, limit: 500, offset } });
       bounties.push(...response.data);
-      const next: unknown = response.headers['x-next-offset'];
+      const next: unknown = response.headers["x-next-offset"];
       offset = next != null ? Number(next) : undefined;
     }
     return bounties;
@@ -317,70 +357,138 @@ export const greenfieldApi = {
     issue_body?: string;
     escrow_pda?: string;
   }): Promise<ApiBountyOut> => {
-    const response = await apiClient.post<ApiBountyOut>('/bounties', data);
+    const response = await apiClient.post<ApiBountyOut>("/bounties", data);
     return response.data;
   },
-  applyToBounty: async (bountyId: number, proposal?: string): Promise<ApiBountyApplicantOut> => {
-    const response = await apiClient.post<ApiBountyApplicantOut>(`/bounties/${bountyId}/apply`, {
-      proposal: proposal || '',
-    });
-    return response.data;
-  },
-  listBountyApplicants: async (bountyId: number): Promise<ApiBountyApplicantOut[]> => {
-    const response = await apiClient.get<ApiBountyApplicantOut[]>(`/bounties/${bountyId}/applicants`);
-    return response.data;
-  },
-  acceptBountyApplicant: async (bountyId: number, applicantId: number): Promise<ApiBountyOut> => {
-    const response = await apiClient.post<ApiBountyOut>(
-      `/bounties/${bountyId}/applicants/${applicantId}/accept`
+  applyToBounty: async (
+    bountyId: number,
+    proposal?: string,
+  ): Promise<ApiBountyApplicantOut> => {
+    const response = await apiClient.post<ApiBountyApplicantOut>(
+      `/bounties/${bountyId}/apply`,
+      {
+        proposal: proposal || "",
+      },
     );
     return response.data;
   },
-  updateBountyReward: async (bountyId: number, points: number): Promise<ApiBountyOut> => {
-    const response = await apiClient.patch<ApiBountyOut>(`/bounties/${bountyId}/reward`, { points });
+  listBountyApplicants: async (
+    bountyId: number,
+  ): Promise<ApiBountyApplicantOut[]> => {
+    const response = await apiClient.get<ApiBountyApplicantOut[]>(
+      `/bounties/${bountyId}/applicants`,
+    );
     return response.data;
   },
-  submitBounty: async (bountyId: number, prUrl: string): Promise<ApiBountyOut> => {
-    const response = await apiClient.post<ApiBountyOut>(`/bounties/${bountyId}/submit`, {
-      pr_url: prUrl,
-    });
+  acceptBountyApplicant: async (
+    bountyId: number,
+    applicantId: number,
+  ): Promise<ApiBountyOut> => {
+    const response = await apiClient.post<ApiBountyOut>(
+      `/bounties/${bountyId}/applicants/${applicantId}/accept`,
+    );
+    return response.data;
+  },
+  updateBountyReward: async (
+    bountyId: number,
+    points: number,
+  ): Promise<ApiBountyOut> => {
+    const response = await apiClient.patch<ApiBountyOut>(
+      `/bounties/${bountyId}/reward`,
+      { points },
+    );
+    return response.data;
+  },
+  submitBounty: async (
+    bountyId: number,
+    prUrl: string,
+  ): Promise<ApiBountyOut> => {
+    const response = await apiClient.post<ApiBountyOut>(
+      `/bounties/${bountyId}/submit`,
+      {
+        pr_url: prUrl,
+      },
+    );
     return response.data;
   },
   rejectSubmission: async (bountyId: number): Promise<ApiBountyOut> => {
-    const response = await apiClient.post<ApiBountyOut>(`/bounties/${bountyId}/reject-submission`);
+    const response = await apiClient.post<ApiBountyOut>(
+      `/bounties/${bountyId}/reject-submission`,
+    );
     return response.data;
   },
   completeBounty: async (bountyId: number): Promise<ApiBountyOut> => {
-    const response = await apiClient.post<ApiBountyOut>(`/bounties/${bountyId}/complete`);
+    const response = await apiClient.post<ApiBountyOut>(
+      `/bounties/${bountyId}/complete`,
+    );
     return response.data;
   },
-  reportClaim: async (bountyId: number, txSignature: string): Promise<ApiBountyOut> => {
-    const response = await apiClient.post<ApiBountyOut>(`/bounties/${bountyId}/claimed`, {
-      tx_signature: txSignature,
-    });
+  reportClaim: async (
+    bountyId: number,
+    txSignature: string,
+  ): Promise<ApiBountyOut> => {
+    const response = await apiClient.post<ApiBountyOut>(
+      `/bounties/${bountyId}/claimed`,
+      {
+        tx_signature: txSignature,
+      },
+    );
     return response.data;
   },
   cancelBounty: async (bountyId: number): Promise<{ status: string }> => {
-    const response = await apiClient.post<{ status: string }>(`/bounties/${bountyId}/cancel`);
+    const response = await apiClient.post<{ status: string }>(
+      `/bounties/${bountyId}/cancel`,
+    );
+    return response.data;
+  },
+  retryBounty: async (
+    bountyId: number,
+    force: boolean = false,
+  ): Promise<ApiBountyOut> => {
+    const response = await apiClient.post<ApiBountyOut>(
+      `/bounties/${bountyId}/retry`,
+      null,
+      {
+        params: force ? { force: true } : undefined,
+      },
+    );
+    return response.data;
+  },
+  getBountyAuditLogs: async (bountyId: number): Promise<any[]> => {
+    const response = await apiClient.get<any[]>(
+      `/bounties/${bountyId}/audit-logs`,
+    );
     return response.data;
   },
 
   // Admin Endpoints
   admin: {
     getStats: async (): Promise<AdminStatsOut> => {
-      const response = await apiClient.get<AdminStatsOut>('/admin/stats');
+      const response = await apiClient.get<AdminStatsOut>("/admin/stats");
       return response.data;
     },
     getProjects: async (): Promise<ApiAdminProjectOut[]> => {
-      const response = await apiClient.get<ApiAdminProjectOut[]>('/admin/projects');
+      const response =
+        await apiClient.get<ApiAdminProjectOut[]>("/admin/projects");
       return response.data;
     },
-    createProject: async (data: ApiAdminProjectCreate): Promise<ApiAdminProjectOut> => {
-      const response = await apiClient.post<ApiAdminProjectOut>('/admin/projects', data);
+    createProject: async (
+      data: ApiAdminProjectCreate,
+    ): Promise<ApiAdminProjectOut> => {
+      const response = await apiClient.post<ApiAdminProjectOut>(
+        "/admin/projects",
+        data,
+      );
       return response.data;
     },
-    updateProject: async (id: number, data: { description?: string }): Promise<ApiAdminProjectOut> => {
-      const response = await apiClient.patch<ApiAdminProjectOut>(`/admin/projects/${id}`, data);
+    updateProject: async (
+      id: number,
+      data: { description?: string },
+    ): Promise<ApiAdminProjectOut> => {
+      const response = await apiClient.patch<ApiAdminProjectOut>(
+        `/admin/projects/${id}`,
+        data,
+      );
       return response.data;
     },
     deleteProject: async (id: number): Promise<void> => {
@@ -392,41 +500,55 @@ export const greenfieldApi = {
       description?: string;
       default_branch?: string;
     }): Promise<ApiRepositoryOut> => {
-      const response = await apiClient.post<ApiRepositoryOut>('/admin/repositories', data);
+      const response = await apiClient.post<ApiRepositoryOut>(
+        "/admin/repositories",
+        data,
+      );
       return response.data;
     },
     syncRepository: async (
-      repositoryId: number
+      repositoryId: number,
     ): Promise<{
       repository_id: number;
       repository: string;
       total_synced: number;
       new_issues: number;
     }> => {
-      const response = await apiClient.post(`/admin/repositories/${repositoryId}/sync`);
+      const response = await apiClient.post(
+        `/admin/repositories/${repositoryId}/sync`,
+      );
       return response.data;
     },
     getUnrewardedIssues: async (params?: {
       repository_id?: number;
       project_id?: number;
     }): Promise<ApiTrackedIssueOut[]> => {
-      const response = await apiClient.get<ApiTrackedIssueOut[]>('/admin/unrewarded-issues', {
-        params,
-      });
+      const response = await apiClient.get<ApiTrackedIssueOut[]>(
+        "/admin/unrewarded-issues",
+        {
+          params,
+        },
+      );
       return response.data;
     },
-    assignReward: async (issueId: number, points: number): Promise<ApiBountyOut> => {
+    assignReward: async (
+      issueId: number,
+      points: number,
+    ): Promise<ApiBountyOut> => {
       const response = await apiClient.post<ApiBountyOut>(
         `/admin/unrewarded-issues/${issueId}/assign-reward`,
-        { points }
+        { points },
       );
       return response.data;
     },
     reviewSubmission: async (
       bountyId: number,
-      data: ReviewSubmissionPayload
+      data: ReviewSubmissionPayload,
     ): Promise<ApiBountyOut> => {
-      const response = await apiClient.post<ApiBountyOut>(`/admin/bounties/${bountyId}/review`, data);
+      const response = await apiClient.post<ApiBountyOut>(
+        `/admin/bounties/${bountyId}/review`,
+        data,
+      );
       return response.data;
     },
   },
@@ -436,5 +558,6 @@ export const greenfieldApi = {
 export const bountiesApi = {
   getBounties: () => greenfieldApi.listBounties(),
   getHealth: () => greenfieldApi.getHealth(),
-  reportClaim: (bountyId: number, signature: string) => greenfieldApi.reportClaim(bountyId, signature),
+  reportClaim: (bountyId: number, signature: string) =>
+    greenfieldApi.reportClaim(bountyId, signature),
 };

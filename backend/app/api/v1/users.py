@@ -5,6 +5,7 @@ from app.core.deps import CurrentUser, DbSession
 from app.core.exceptions import NotFoundError
 from app.db.base import UserModel
 from app.schemas.user import UserOut, UserPublicOut, UserUpdate
+from app.services import bounty_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -17,11 +18,15 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def update_me(current_user: CurrentUser, data: UserUpdate, db: DbSession) -> UserModel:
     """
     Vincula ou altera o endereço público da carteira Solana (base58)
-    do usuário logado para recebimento de recompensas.
+    do usuário logado para recebimento de recompensas. Reconcilia automaticamente
+    bounties atribuídas e tenta novamente aprovações que estavam pendentes (#24).
     """
+    old_wallet = current_user.wallet
     current_user.wallet = data.wallet
     await db.commit()
     await db.refresh(current_user)
+
+    await bounty_service.reconcile_hunter_wallet(db, current_user, old_wallet=old_wallet)
     return current_user
 
 
