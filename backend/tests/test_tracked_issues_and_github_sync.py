@@ -179,8 +179,8 @@ async def test_github_sync_and_reward_assignment(client, admin_headers):
             "title": "Bug in transaction serialization",
             "body": "Serialization fails with large accounts.",
             "html_url": "https://github.com/solana-labs/solinpy-testing/issues/101",
-            "user": {"login": "tester1"},
-            "labels": [{"name": "bug"}],
+            "author_username": "tester1",
+            "labels": ["bug"],
             "state": "open",
         },
         {
@@ -188,8 +188,8 @@ async def test_github_sync_and_reward_assignment(client, admin_headers):
             "title": "Add documentation for LiteSVM testing",
             "body": "How to use LiteSVM with greenfield.",
             "html_url": "https://github.com/solana-labs/solinpy-testing/issues/102",
-            "user": {"login": "tester2"},
-            "labels": [{"name": "docs"}],
+            "author_username": "tester2",
+            "labels": ["docs"],
             "state": "open",
         },
     ]
@@ -217,6 +217,7 @@ async def test_github_sync_and_reward_assignment(client, admin_headers):
     assert len(unrewarded) == 2
 
     target_issue = next(i for i in unrewarded if i["issue_number"] == 101)
+    assert target_issue["author_username"] == "tester1"
     target_id = target_issue["id"]
 
     # 4. Admin assigns reward to issue 101
