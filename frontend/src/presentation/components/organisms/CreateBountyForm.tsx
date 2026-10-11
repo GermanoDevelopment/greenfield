@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { pointsToUsdc } from '../../../core/domain/types';
 import type { Issue, Repository } from '../../../core/domain/types';
@@ -19,7 +19,12 @@ import DesygenButton from '../atoms/DesygenButton';
 
 export const CreateBountyForm: React.FC = () => {
   const navigate = useNavigate();
-  const { treasury, gitHubService, createBounty, availableUsers, toggleRepositoryApproval } = useApp();
+  const [searchParams] = useSearchParams();
+  const paramRepoId = searchParams.get('repoId') || searchParams.get('repositoryId');
+  const paramIssueNumber = searchParams.get('issueNumber') || searchParams.get('issueNum');
+  const paramIssueId = searchParams.get('issueId');
+
+  const { treasury, gitHubService, createBounty, availableUsers } = useApp();
 
   // Estado do Wizard (1, 2, 3)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -33,16 +38,19 @@ export const CreateBountyForm: React.FC = () => {
   const [selectedDevId, setSelectedDevId] = useState<string>('');
 
   const [loading, setLoading] = useState(false);
-  const [approvalLoading, setApprovalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchRepos = React.useCallback(async () => {
     const list = await gitHubService.listRepositories();
     setRepositories(list);
     if (list.length > 0) {
-      setSelectedRepoId((prev) => prev || list[0].id);
+      if (paramRepoId && list.some((r) => r.id === paramRepoId)) {
+        setSelectedRepoId(paramRepoId);
+      } else {
+        setSelectedRepoId((prev) => prev || list[0].id);
+      }
     }
-  }, [gitHubService]);
+  }, [gitHubService, paramRepoId]);
 
   useEffect(() => {
     fetchRepos();
@@ -54,28 +62,29 @@ export const CreateBountyForm: React.FC = () => {
       const list = await gitHubService.listIssues(selectedRepoId);
       setIssues(list);
       if (list.length > 0) {
+        if (paramIssueNumber) {
+          const matchedByNum = list.find((i) => i.number === parseInt(paramIssueNumber, 10));
+          if (matchedByNum) {
+            setSelectedIssueId(matchedByNum.id);
+            return;
+          }
+        }
+        if (paramIssueId) {
+          const matchedById = list.find((i) => i.id === paramIssueId);
+          if (matchedById) {
+            setSelectedIssueId(matchedById.id);
+            return;
+          }
+        }
         setSelectedIssueId(list[0].id);
       }
     };
     fetchIssues();
-  }, [selectedRepoId, gitHubService]);
+  }, [selectedRepoId, gitHubService, paramIssueNumber, paramIssueId]);
 
   const selectedRepo = repositories.find((r) => r.id === selectedRepoId);
   const selectedIssue = issues.find((i) => i.id === selectedIssueId);
   const selectedDev = availableUsers.find((u) => u.id === selectedDevId);
-
-  const handleToggleApproval = async () => {
-    if (!selectedRepo) return;
-    setApprovalLoading(true);
-    try {
-      await toggleRepositoryApproval(selectedRepo.id, !selectedRepo.approved_for_round);
-      await fetchRepos();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setApprovalLoading(false);
-    }
-  };
 
   const usdcEquivalent = pointsToUsdc(points);
   const availableTreasury = treasury ? treasury.available_usdc : 0;
@@ -142,7 +151,14 @@ export const CreateBountyForm: React.FC = () => {
     }
   };
 
-  const developers = availableUsers.filter((u) => u.role === 'developer');
+  const developers = availableUsers.filter((u) => {
+    const roleUpper = (u.role || '').toUpperCase();
+    return (
+      roleUpper === 'DEVELOPER' ||
+      roleUpper === 'CONTRIBUTOR' ||
+      roleUpper === 'BOTH'
+    );
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -214,17 +230,6 @@ export const CreateBountyForm: React.FC = () => {
                   <GitBranch className="w-3.5 h-3.5 text-[#28B110]" />
                   <span>Repositório</span>
                 </label>
-                {selectedRepo && (
-                  <span
-                    className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                      selectedRepo.approved_for_round
-                        ? 'bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/40'
-                        : 'bg-amber-950/40 text-amber-300 border border-amber-800/60'
-                    }`}
-                  >
-                    {selectedRepo.approved_for_round ? 'Aprovado para a Rodada' : 'Não Aprovado na Rodada'}
-                  </span>
-                )}
               </div>
 
               <select
@@ -234,35 +239,10 @@ export const CreateBountyForm: React.FC = () => {
               >
                 {repositories.map((repo) => (
                   <option key={repo.id} value={repo.id} className="bg-[#131A12] text-[#D2DFD1]">
-                    {repo.owner}/{repo.name} ({repo.approved_for_round ? '✓ Rodada Ativa' : 'Pendente'})
+                    {repo.owner}/{repo.name}
                   </option>
                 ))}
               </select>
-
-              {/* Botão de Gestão de Aprovação do Repositório */}
-              {selectedRepo && (
-                <div className="p-3 rounded-xl bg-[#131A12] border border-[#252E24] flex items-center justify-between gap-3 text-xs">
-                  <span className="text-[#889887]">
-                    {selectedRepo.approved_for_round
-                      ? 'Este repositório está elegível para receber financiamento de issues.'
-                      : 'O mantenedor precisa aprovar a inclusão deste repositório na rodada.'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleToggleApproval}
-                    disabled={approvalLoading}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors shrink-0 ${
-                      selectedRepo.approved_for_round
-                        ? 'bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60'
-                        : 'bg-[#28B110] hover:brightness-110 text-[#141814]'
-                    }`}
-                  >
-                    {selectedRepo.approved_for_round
-                      ? 'Remover da Rodada'
-                      : 'Aprovar Repositório'}
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Issue */}

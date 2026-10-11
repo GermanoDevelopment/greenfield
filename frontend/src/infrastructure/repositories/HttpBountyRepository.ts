@@ -61,6 +61,7 @@ function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
       status: api.status === 'COMPLETED' ? 'CLOSED' : 'OPEN',
     },
     repository_id: String(api.repository_id || api.project_id),
+    project_id: api.project_id,
     maintainer_id: String(api.issuer_id),
     maintainer: mapApiUserToDomain(api.issuer),
     developer_id: api.hunter_id ? String(api.hunter_id) : undefined,
@@ -118,12 +119,21 @@ export class HttpBountyRepository implements IBountyRepository {
   }
 
   async create(bountyData: Omit<Bounty, 'id' | 'created_at'>): Promise<Bounty> {
-    const numericProjectId = parseInt(bountyData.repository_id.replace(/\D/g, ''), 10) || 1;
-    const issueNum = bountyData.issue?.number || parseInt(bountyData.issue_id.replace(/\D/g, ''), 10) || 1;
-    const issueUrl = bountyData.issue?.url || `https://github.com/GermanoDevelopment/greenfield/issues/${issueNum}`;
+    const numericRepoId = parseInt(bountyData.repository_id.replace(/\D/g, ''), 10) || 1;
+    const numericProjectId = bountyData.project_id || bountyData.repository?.project_id || numericRepoId;
+
+    let issueNum = bountyData.issue?.number;
+    if (!issueNum || isNaN(issueNum)) {
+      const match = bountyData.issue_id.match(/-(\d+)$/) || bountyData.issue_id.match(/(\d+)$/);
+      issueNum = match ? parseInt(match[1], 10) : parseInt(bountyData.issue_id.replace(/\D/g, ''), 10) || 1;
+    }
+
+    const repoBaseUrl = bountyData.repository?.github_url || 'https://github.com/GermanoDevelopment/greenfield';
+    const issueUrl = bountyData.issue?.url || `${repoBaseUrl}/issues/${issueNum}`;
 
     const created = await greenfieldApi.createBounty({
       project_id: numericProjectId,
+      repository_id: numericRepoId,
       issue_url: issueUrl,
       points: bountyData.points,
       amount_usdc: bountyData.usdc_amount ? Math.round(bountyData.usdc_amount * 1_000_000) : bountyData.points * 10_000,

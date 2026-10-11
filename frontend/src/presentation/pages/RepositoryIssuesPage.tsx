@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ListTodo,
   FolderGit2,
@@ -24,6 +24,7 @@ const ISSUE_POINTS = 120;
 
 export const RepositoryIssuesPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
   const { isBackendConnected } = useApp();
 
   const [loading, setLoading] = useState(true);
@@ -304,13 +305,26 @@ export const RepositoryIssuesPage: React.FC = () => {
 
                   {/* Botões de Ação Dinâmicos */}
                   <div className="flex items-center gap-2">
+                    {/* Botão de Financiar Issue (Fund this issue) */}
+                    {!linkedBounty && !issue.has_bounty && (
+                      <button
+                        onClick={() => {
+                          navigate(`/bounties/new?repoId=${repoId}&issueNumber=${issue.number}`);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#28B110] hover:brightness-110 text-[#101410] font-bold text-xs transition-all shadow-xs cursor-pointer"
+                      >
+                        <Coins className="w-3.5 h-3.5" />
+                        Fund this issue
+                      </button>
+                    )}
+
                     {/* Botão de Candidatura (Disponível quando OPEN) */}
                     {status === 'OPEN' && (
                       <button
                         onClick={() => {
                           const targetBounty = linkedBounty || {
                             id: issue.bounty_id || 1,
-                            project_id: 1,
+                            project_id: repoId,
                             repository_id: repoId,
                             issuer_id: 1,
                             hunter_id: null,
@@ -341,11 +355,11 @@ export const RepositoryIssuesPage: React.FC = () => {
                       <button
                         onClick={() => {
                           const targetBounty = linkedBounty || {
-                            id: issue.bounty_id || 2,
-                            project_id: 1,
+                            id: issue.bounty_id || 1,
+                            project_id: repoId,
                             repository_id: repoId,
                             issuer_id: 1,
-                            hunter_id: 2,
+                            hunter_id: null,
                             issue_url: issue.html_url,
                             issue_number: issue.number,
                             issue_title: issue.title,
