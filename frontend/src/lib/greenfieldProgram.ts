@@ -20,8 +20,13 @@ import { AccountRole } from '@solana/instructions';
  * exactly, cross-checked against those two implementations.
  */
 
-const PROGRAM_ID_ENV = import.meta.env.VITE_SOLANA_PROGRAM_ID as string | undefined;
-const USDC_MINT_ENV = import.meta.env.VITE_SOLANA_USDC_MINT as string | undefined;
+const metaEnv =
+  typeof import.meta !== 'undefined' && (import.meta as any).env
+    ? (import.meta as any).env
+    : (typeof process !== 'undefined' && process.env) || {};
+
+const PROGRAM_ID_ENV = metaEnv.VITE_SOLANA_PROGRAM_ID as string | undefined;
+const USDC_MINT_ENV = metaEnv.VITE_SOLANA_USDC_MINT as string | undefined;
 
 export const TOKEN_PROGRAM_ID = address('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 export const ASSOCIATED_TOKEN_PROGRAM_ID = address('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
@@ -151,3 +156,133 @@ export async function buildClaimInstruction(accounts: ClaimAccounts): Promise<In
     data,
   };
 }
+
+/** Resolves the Treasury PDA address for the configured program and USDC mint. */
+export async function getTreasuryPdaAddress(): Promise<Address> {
+  const programId = getProgramId();
+  return await findTreasuryPda(programId, USDC_MINT);
+}
+
+/** Resolves the community pool's vault token account PDA. */
+export async function getVaultPdaAddress(): Promise<Address> {
+  const programId = getProgramId();
+  const treasury = await findTreasuryPda(programId, USDC_MINT);
+  return await findVaultPda(programId, treasury);
+}
+
+export interface FundTreasuryAccounts {
+  funder: Address;
+  funderTokenAccount: Address;
+  treasury: Address;
+  vault: Address;
+  mint: Address;
+}
+
+/** Derives the accounts needed for the fund_treasury instruction. */
+export async function resolveFundTreasuryAccounts(
+  funder: Address,
+): Promise<FundTreasuryAccounts> {
+  const programId = getProgramId();
+  const treasury = await findTreasuryPda(programId, USDC_MINT);
+  const vault = await findVaultPda(programId, treasury);
+  const funderTokenAccount = await findAssociatedTokenAddress(funder, USDC_MINT);
+
+  return { funder, funderTokenAccount, treasury, vault, mint: USDC_MINT };
+}
+
+/** Builds the Anchor fund_treasury instruction. */
+export async function buildFundTreasuryInstruction(
+  accounts: FundTreasuryAccounts,
+  amountMicroUsdc: bigint,
+): Promise<Instruction> {
+  const programId = getProgramId();
+  const discriminator = await anchorDiscriminator('fund_treasury');
+  const amountBytes = u64Encoder.encode(amountMicroUsdc);
+  const data = new Uint8Array(discriminator.length + amountBytes.length);
+  data.set(discriminator, 0);
+  data.set(amountBytes, discriminator.length);
+
+  return {
+    programAddress: programId,
+    accounts: [
+      { address: accounts.funder, role: AccountRole.WRITABLE_SIGNER },
+      { address: accounts.funderTokenAccount, role: AccountRole.WRITABLE },
+      { address: accounts.treasury, role: AccountRole.WRITABLE },
+      { address: accounts.vault, role: AccountRole.WRITABLE },
+      { address: accounts.mint, role: AccountRole.READONLY },
+      { address: TOKEN_PROGRAM_ID, role: AccountRole.READONLY },
+    ],
+    data,
+  };
+}
+
+export interface DecodedTreasury {
+  total_deposited: bigint;
+  total_reserved: bigint;
+  total_claimed: bigint;
+  bump: number;
+  total_deposited_usdc: number;
+  total_reserved_usdc: number;
+  total_claimed_usdc: number;
+  available_usdc: number;
+}
+
+/** Decodes Anchor Treasury account data buffer into domain numbers. */
+export function decodeTreasuryAccount(data: Uint8Array): DecodedTreasury {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  // Skip 8-byte discriminator + 32-byte authority + 32-byte mint + 32-byte vault = 104 bytes
+  const total_deposited = view.getBigUint64(104, true);
+  const total_reserved = view.getBigUint64(112, true);
+  const total_claimed = view.getBigUint64(120, true);
+  const bump = data[128] ?? 0;
+
+  const total_deposited_usdc = Number(total_deposited) / 1_000_000;
+  const total_reserved_usdc = Number(total_reserved) / 1_000_000;
+  const total_claimed_usdc = Number(total_claimed) / 1_000_000;
+  const available_usdc = Math.max(0, total_deposited_usdc - total_reserved_usdc);
+
+  return {
+    total_deposited,
+    total_reserved,
+    total_claimed,
+    bump,
+    total_deposited_usdc,
+    total_reserved_usdc,
+    total_claimed_usdc,
+    available_usdc,
+  };
+}
+
+/** Fetches on-chain treasury account directly from Solana RPC. */
+export async function fetchOnChainTreasury(rpcUrl?: string): Promise<DecodedTreasury | null> {
+  try {
+    const programId = getProgramId();
+    const treasuryPda = await findTreasuryPda(programId, USDC_MINT);
+    const endpoint =
+      rpcUrl || (metaEnv.VITE_SOLANA_RPC_URL as string) || 'https://api.devnet.solana.com';
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getAccountInfo',
+        params: [treasuryPda, { encoding: 'base64' }],
+      }),
+    });
+    const json = await res.json();
+    const base64Data = json?.result?.value?.data?.[0];
+    if (!base64Data) return null;
+
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return decodeTreasuryAccount(bytes);
+  } catch {
+    return null;
+  }
+}
+

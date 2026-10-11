@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+const metaEnv =
+  typeof import.meta !== 'undefined' && (import.meta as any).env
+    ? (import.meta as any).env
+    : (typeof process !== 'undefined' && process.env) || {};
+
+const API_BASE_URL = metaEnv.VITE_API_URL || 'http://localhost:8080/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -190,6 +195,20 @@ export interface ReviewSubmissionPayload {
   reason?: string;
 }
 
+export interface ApiTreasuryOut {
+  total_deposited: number;
+  total_reserved: number;
+  total_claimed: number;
+  available: number;
+  total_deposited_usdc: number;
+  total_reserved_usdc: number;
+  total_claimed_usdc: number;
+  available_usdc: number;
+  vault?: string | null;
+  mint?: string | null;
+  authority?: string | null;
+}
+
 export const greenfieldApi = {
   // Health
   getHealth: async (): Promise<HealthOut> => {
@@ -343,6 +362,12 @@ export const greenfieldApi = {
   },
   cancelBounty: async (bountyId: number): Promise<{ status: string }> => {
     const response = await apiClient.post<{ status: string }>(`/bounties/${bountyId}/cancel`);
+    return response.data;
+  },
+
+  // Treasury
+  getTreasuryBalance: async (): Promise<ApiTreasuryOut> => {
+    const response = await apiClient.get<ApiTreasuryOut>('/treasury/balance');
     return response.data;
   },
 

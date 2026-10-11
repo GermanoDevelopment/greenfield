@@ -44,6 +44,7 @@ interface AppContextType {
     repositoryId: string;
     points: number;
     developerId?: string;
+    escrow_pda?: string;
   }) => Promise<Bounty>;
   submitProposal: (
     bountyId: string,
@@ -260,6 +261,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       repositoryId: string;
       points: number;
       developerId?: string;
+      escrow_pda?: string;
     }) => {
       const dev = params.developerId
         ? availableUsers.find((u) => u.id === params.developerId)
@@ -271,6 +273,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         maintainer: currentUser,
         points: params.points,
         developer: dev,
+        escrow_pda: params.escrow_pda,
       });
 
       await refreshData();
