@@ -13,6 +13,7 @@ export class GitHubService implements IGitHubService {
             repos.push({
               id: String(r.id),
               github_repository_id: r.id,
+              project_id: project.id,
               owner: r.github_owner,
               name: r.github_name,
               github_url: `https://github.com/${r.github_repo}`,
@@ -26,6 +27,7 @@ export class GitHubService implements IGitHubService {
           repos.push({
             id: String(project.id),
             github_repository_id: project.id,
+            project_id: project.id,
             owner: parts[0] || 'owner',
             name: parts[1] || project.github_repo,
             github_url: `https://github.com/${project.github_repo}`,

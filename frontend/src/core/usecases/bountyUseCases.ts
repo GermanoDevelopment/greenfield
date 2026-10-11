@@ -2,6 +2,7 @@ import type {
   Bounty,
   BountyStatus,
   Claim,
+  Issue,
   Proposal,
   PullRequest,
   Repository,
@@ -92,9 +93,28 @@ export class BountyUseCases {
       ? 'ASSIGNED'
       : 'OPEN_FOR_PROPOSALS';
 
+    // Recupera contexto completo do repositório e issue se o serviço estiver disponível
+    let repo: Repository | undefined = undefined;
+    let issue: Issue | undefined = undefined;
+    if (this.gitHubService) {
+      try {
+        const repos = await this.gitHubService.listRepositories();
+        repo = repos.find((r) => r.id === params.repositoryId);
+        if (params.issueId) {
+          const found = await this.gitHubService.getIssueById(params.issueId);
+          if (found) issue = found;
+        }
+      } catch {
+        // Fallback gracioso
+      }
+    }
+
     return await this.bountyRepo.create({
       issue_id: params.issueId,
+      issue,
       repository_id: params.repositoryId,
+      repository: repo,
+      project_id: repo?.project_id,
       maintainer_id: params.maintainer.id,
       maintainer: params.maintainer,
       developer_id: params.developer?.id,

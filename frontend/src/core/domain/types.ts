@@ -52,6 +52,7 @@ export interface User {
 export interface Repository {
   id: string;
   github_repository_id: number;
+  project_id?: number;
   owner: string;
   name: string;
   github_url: string;
@@ -112,6 +113,7 @@ export interface Bounty {
   issue_id: string;
   issue?: Issue;
   repository_id: string;
+  project_id?: number;
   repository?: Repository;
   maintainer_id: string;
   maintainer?: User;
