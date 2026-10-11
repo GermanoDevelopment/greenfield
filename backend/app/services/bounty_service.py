@@ -114,6 +114,28 @@ async def create_bounty(
         escrow_funded = await solana_service.verify_escrow_funded(escrow_pda, expected_ui_amount)
         if escrow_funded is False:
             raise ValidationError("Escrow account is not funded with the required USDC amount")
+        if escrow_funded is None:
+            raise ValidationError(
+                "Unable to verify escrow funding on-chain: Solana RPC error or timeout"
+            )
+
+    if solana_service.is_onchain_enabled():
+        treasury_acc = await solana_service.get_treasury_account()
+        if treasury_acc is None:
+            raise ValidationError(
+                "Unable to verify treasury solvency on-chain: Solana RPC error or timeout"
+            )
+        available_base = treasury_acc["total_deposited"] - treasury_acc["total_reserved"]
+        if final_amount_usdc > available_base:
+            raise ValidationError(
+                f"Bounty amount ({final_amount_usdc} micro-USDC) exceeds available "
+                f"treasury balance ({available_base} micro-USDC)"
+            )
+        if escrow_pda is None and treasury_acc.get("vault"):
+            escrow_pda = treasury_acc["vault"]
+
+    if final_amount_usdc > 25_000_000_000:
+        raise ValidationError("Bounty amount exceeds community pool solvency limit of $25,000 USDC")
 
     bounty = BountyModel(
         project_id=project_id,
@@ -302,8 +324,44 @@ async def update_bounty_reward(
     if bounty.status != BountyStatus.OPEN.value:
         raise ConflictError("Cannot modify reward of an assigned or ongoing bounty (Invariant 2)")
 
+    new_amount_usdc = points * 10_000
+    delta_usdc = new_amount_usdc - bounty.amount_usdc
+
+    # If increasing reward, revalidate funding and solvency
+    if delta_usdc > 0:
+        if bounty.escrow_pda is not None:
+            expected_ui_amount = new_amount_usdc / 10**solana_service.USDC_DECIMALS
+            escrow_funded = await solana_service.verify_escrow_funded(
+                bounty.escrow_pda, expected_ui_amount
+            )
+            if escrow_funded is False:
+                raise ValidationError(
+                    "Escrow account is not funded with the required USDC amount "
+                    "for the updated reward"
+                )
+            if escrow_funded is None:
+                raise ValidationError(
+                    "Unable to verify escrow funding on-chain: Solana RPC error or timeout"
+                )
+
+        if solana_service.is_onchain_enabled():
+            treasury_acc = await solana_service.get_treasury_account()
+            if treasury_acc is None:
+                raise ValidationError(
+                    "Unable to verify treasury solvency on-chain: Solana RPC error or timeout"
+                )
+            available_base = treasury_acc["total_deposited"] - treasury_acc["total_reserved"]
+            if delta_usdc > available_base:
+                raise ValidationError(
+                    f"Increasing reward by {delta_usdc} micro-USDC exceeds available "
+                    f"treasury balance ({available_base} micro-USDC)"
+                )
+
+        if new_amount_usdc > 25_000_000_000:
+            raise ValidationError("Reward exceeds total community pool cap ($25,000 USDC)")
+
     bounty.points = points
-    bounty.amount_usdc = points * 10_000
+    bounty.amount_usdc = new_amount_usdc
     await session.commit()
     await session.refresh(bounty)
     return bounty

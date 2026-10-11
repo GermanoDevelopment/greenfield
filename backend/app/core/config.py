@@ -30,11 +30,24 @@ class Settings(BaseSettings):
     enable_dev_login: bool = False
 
     solana_rpc_url: str = "https://api.devnet.solana.com"
+    solana_cluster: str = "devnet"
     solana_program_id: str = ""
+    usdc_mint: str | None = None
+    usdc_mint_mainnet: str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
     usdc_mint_devnet: str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
     solana_treasury_keypair_path: str | None = None
     solana_treasury_private_key: str | None = None
     solana_authority_secret_key: str = ""
+
+    @property
+    def current_usdc_mint(self) -> str:
+        if self.usdc_mint:
+            return self.usdc_mint
+        cluster = self.solana_cluster.lower()
+        rpc = self.solana_rpc_url.lower()
+        if "mainnet" in cluster or "mainnet" in rpc:
+            return self.usdc_mint_mainnet
+        return self.usdc_mint_devnet
 
     admin_github_usernames: list[str] = []
 

@@ -1,5 +1,6 @@
 """Dev-only login shortcut, enabled only by an explicit ENABLE_DEV_LOGIN=true."""
 
+import os
 import subprocess
 import sys
 
@@ -70,14 +71,16 @@ def test_dev_github_id_is_negative(username):
 def test_dev_github_id_is_stable_across_processes():
     # hash() is salted per process (PYTHONHASHSEED); the fake id must not be.
     code = "from app.api.v1.auth import _dev_github_id; print(_dev_github_id('dev-tester'))"
-    ids = {
-        subprocess.run(
+    ids = set()
+    for seed in ("1", "2", "3"):
+        env = dict(os.environ)
+        env["PYTHONHASHSEED"] = seed
+        proc = subprocess.run(
             [sys.executable, "-c", code],
             capture_output=True,
             text=True,
             check=True,
-            env={"PYTHONHASHSEED": seed, "PATH": ""},
-        ).stdout.strip()
-        for seed in ("1", "2", "3")
-    }
+            env=env,
+        )
+        ids.add(proc.stdout.strip())
     assert ids == {str(_dev_github_id("dev-tester"))}
