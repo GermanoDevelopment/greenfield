@@ -1,7 +1,7 @@
 import re
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -42,10 +42,21 @@ async def get_project(session: AsyncSession, project_id: int) -> ProjectModel:
     return project
 
 
-def _transition(bounty: BountyModel, to_status: BountyStatus) -> None:
+async def _transition(session: AsyncSession, bounty: BountyModel, to_status: BountyStatus) -> None:
     current = BountyStatus(bounty.status)
     if to_status not in BOUNTY_TRANSITIONS[current]:
         raise ConflictError(f"Cannot transition bounty from {current.value} to {to_status.value}")
+    stmt = (
+        update(BountyModel)
+        .where(BountyModel.id == bounty.id, BountyModel.status == current.value)
+        .values(status=to_status.value)
+    )
+    result = await session.execute(stmt)
+    if result.rowcount == 0:
+        raise ConflictError(
+            f"Cannot transition bounty from {current.value} to {to_status.value} "
+            "(state changed concurrently)"
+        )
     bounty.status = to_status.value
 
 
@@ -95,6 +106,8 @@ async def create_bounty(
     # If amount_usdc is not specified, calculate canonical conversion:
     # 100 pts = $1 USDC = 1_000_000 micro-USDC
     final_amount_usdc = amount_usdc if amount_usdc is not None else points * 10_000
+    if points <= 0 or final_amount_usdc <= 0:
+        raise ValidationError("Points and bounty amount must be greater than zero")
 
     # Auto-extract issue details from GitHub if missing
     parsed = github_service.parse_issue_url(issue_url)
@@ -276,7 +289,7 @@ async def accept_bounty_applicant(
         other.status = "REJECTED"
 
     # Transition bounty to ASSIGNED and freeze reward (Invariant 2)
-    _transition(bounty, BountyStatus.ASSIGNED)
+    await _transition(session, bounty, BountyStatus.ASSIGNED)
     bounty.hunter_id = applicant.user_id
 
     if solana_service.is_onchain_enabled() and applicant.user and applicant.user.wallet:
@@ -317,7 +330,7 @@ async def assign_bounty(
     if solana_service.is_onchain_enabled():
         _require_wallet(hunter, "developer")
 
-    _transition(bounty, BountyStatus.ASSIGNED)
+    await _transition(session, bounty, BountyStatus.ASSIGNED)
     bounty.hunter_id = hunter.id
 
     if solana_service.is_onchain_enabled() and hunter.wallet:
@@ -387,7 +400,7 @@ async def submit_bounty(
     if taken.scalar_one_or_none() is not None:
         raise ConflictError("This pull request is already linked to another bounty")
 
-    _transition(bounty, BountyStatus.SUBMITTED)
+    await _transition(session, bounty, BountyStatus.SUBMITTED)
     bounty.pr_url = canonical_url
     await session.commit()
     await session.refresh(bounty)
@@ -411,7 +424,7 @@ async def complete_bounty(
     if not pr.get("merged"):
         raise ValidationError("Pull request is not merged yet")
 
-    _transition(bounty, BountyStatus.COMPLETED)
+    await _transition(session, bounty, BountyStatus.COMPLETED)
 
     # Invariant 1: Approve claim on-chain unlocks developer's own claim transaction
     if solana_service.is_onchain_enabled():
@@ -444,7 +457,7 @@ async def cancel_bounty(
 ) -> BountyModel:
     if bounty.issuer_id != actor.id and actor.role != "ADMIN":
         raise ForbiddenError("Only the bounty issuer or an admin can cancel it")
-    _transition(bounty, BountyStatus.CANCELLED)
+    await _transition(session, bounty, BountyStatus.CANCELLED)
 
     await _run_onchain_or_rollback(
         session,
@@ -471,7 +484,7 @@ async def record_claim(
         if account is None or account["status"] != solana_service.BOUNTY_STATUS_CLAIMED:
             raise ValidationError("The claim transaction has not been confirmed on-chain yet")
 
-    _transition(bounty, BountyStatus.CLAIMED)
+    await _transition(session, bounty, BountyStatus.CLAIMED)
     bounty.tx_signature = tx_signature
     bounty.claimed_at = datetime.now(UTC)
     await session.commit()
@@ -487,7 +500,7 @@ async def reject_bounty_submission(
     if bounty.status != BountyStatus.SUBMITTED.value:
         raise ConflictError(f"Cannot reject submission for bounty with status {bounty.status}")
 
-    _transition(bounty, BountyStatus.ASSIGNED)
+    await _transition(session, bounty, BountyStatus.ASSIGNED)
     bounty.pr_url = None
     await session.commit()
     await session.refresh(bounty)

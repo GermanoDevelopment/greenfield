@@ -48,6 +48,7 @@ class BountyCreate(BaseModel):
     )
     amount_usdc: int | None = Field(
         default=None,
+        gt=0,
         description="Valor em micro-USDC (se omitido, calcula automaticamente: points * 10_000)",
         examples=[5000000],
     )

@@ -108,5 +108,5 @@ uv run uvicorn app.main:app --reload --port 8080
 ```bash
 uv run ruff check .               # Linter
 uv run ruff format --check .      # Formatador
-uv run pytest                     # Suite de 41 testes unitários e de integração
+uv run pytest                     # Suite de 200 testes unitários e de integração com relatório de cobertura (pytest-cov)
 ```
