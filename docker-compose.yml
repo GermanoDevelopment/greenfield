@@ -29,18 +29,28 @@ services:
     ports:
       - "8080:8080"
     environment:
+      ENVIRONMENT: development
       PORT: 8080
       DATABASE_URL: postgresql+asyncpg://greenfield:greenfield@postgres:5432/greenfield
-      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey_change_in_production}
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey_change_in_production_min_32_chars}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-1440}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8080/api/v1/auth/github/callback}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      ENABLE_DEV_LOGIN: ${ENABLE_DEV_LOGIN:-false}
       SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.devnet.solana.com}
       SOLANA_PROGRAM_ID: ${SOLANA_PROGRAM_ID:-}
+      USDC_MINT_DEVNET: ${USDC_MINT_DEVNET:-4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU}
       CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
-      ADMIN_GITHUB_USERNAMES: '["GermanoDevelopment"]'
+      ADMIN_GITHUB_USERNAMES: ${ADMIN_GITHUB_USERNAMES:-["GermanoDevelopment"]}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   frontend:
     build:
@@ -49,7 +59,8 @@ services:
     container_name: greenfield-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "3000:80"
     environment:

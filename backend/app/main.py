@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from app.api.v1.router import api_router
 from app.core.config import get_settings, validate_settings
 from app.core.exceptions import DomainError
+from app.core.logging_middleware import RequestLoggingMiddleware, setup_logging
 from app.core.security import TokenError
 
 API_DESCRIPTION = """
@@ -72,6 +73,8 @@ TAGS_METADATA = [
 def create_app() -> FastAPI:
     settings = get_settings()
     validate_settings(settings)
+    setup_logging(log_level="INFO")
+
     app = FastAPI(
         title="GREENFIELD — Solana Dev Rewards API",
         description=API_DESCRIPTION,
@@ -79,13 +82,14 @@ def create_app() -> FastAPI:
         openapi_tags=TAGS_METADATA,
     )
 
+    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Total-Count", "X-Next-Offset"],
+        expose_headers=["X-Total-Count", "X-Next-Offset", "X-Request-ID"],
     )
 
     app.include_router(api_router)
