@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { pointsToUsdc } from '../../../core/domain/types';
+import { isDeveloperRole } from '../../../core/domain/roles';
 import type { Issue, Repository } from '../../../core/domain/types';
 import {
   AlertCircle,
@@ -142,7 +143,7 @@ export const CreateBountyForm: React.FC = () => {
     }
   };
 
-  const developers = availableUsers.filter((u) => u.role === 'developer');
+  const developers = availableUsers.filter((u) => isDeveloperRole(u.role));
 
   return (
     <div className="flex flex-col gap-6">
