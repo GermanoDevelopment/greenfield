@@ -1,6 +1,7 @@
 import type { Bounty, Claim, Issue, Proposal, Repository, Treasury, User } from './types';
 
 export interface IBountyRepository {
+  checkConnectivity?(): Promise<boolean>;
   getAll(): Promise<Bounty[]>;
   getById(id: string): Promise<Bounty | null>;
   create(bountyData: Omit<Bounty, 'id' | 'created_at'>): Promise<Bounty>;

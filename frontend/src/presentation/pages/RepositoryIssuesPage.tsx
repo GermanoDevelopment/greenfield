@@ -42,30 +42,37 @@ export const RepositoryIssuesPage: React.FC = () => {
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
   const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
 
-  const repoId = id ? parseInt(id, 10) : 1;
+  const repoId = id && !isNaN(parseInt(id, 10)) ? parseInt(id, 10) : null;
 
   const loadData = React.useCallback(async () => {
+    if (!repoId) {
+      setLoading(false);
+      setActionErrorMessage('ID do repositório inválido ou não especificado.');
+      return;
+    }
+
     setLoading(true);
+    setActionErrorMessage(null);
     try {
       try {
         const repoIssues = await greenfieldApi.listRepositoryIssues(repoId);
         setIssues(repoIssues);
-      } catch (err) {
-        console.warn('Erro ao carregar issues da API:', err);
+      } catch {
+        setActionErrorMessage('Erro ao carregar issues do repositório da API.');
         setIssues([]);
       }
 
       try {
         const allBounties = await greenfieldApi.listBounties();
         setBounties(allBounties);
-      } catch (err) {
-        console.warn('Erro ao carregar bounties da API:', err);
+      } catch {
+        setActionErrorMessage((prev) => prev || 'Erro ao carregar bounties da API.');
         setBounties([]);
       }
     } finally {
       setLoading(false);
     }
-  }, [repoId, isBackendConnected]);
+  }, [repoId]);
 
   useEffect(() => {
     loadData();
@@ -77,9 +84,10 @@ export const RepositoryIssuesPage: React.FC = () => {
     setIsApplying(true);
     setActionErrorMessage(null);
     try {
-      if (isBackendConnected) {
-        await greenfieldApi.applyToBounty(applyModalBounty.id, proposalText);
+      if (!isBackendConnected) {
+        throw new Error('Servidor backend offline. Não é possível candidatar-se no momento.');
       }
+      await greenfieldApi.applyToBounty(applyModalBounty.id, proposalText);
       setActionSuccessMessage(
         `Candidatura enviada com sucesso para a Issue #${applyModalBounty.issue_number || applyModalBounty.id}!`
       );
@@ -88,7 +96,7 @@ export const RepositoryIssuesPage: React.FC = () => {
       await loadData();
     } catch (err: any) {
       setActionErrorMessage(
-        err?.response?.data?.detail || 'Erro ao enviar candidatura. Tente novamente.'
+        err?.response?.data?.detail || err?.message || 'Erro ao enviar candidatura. Tente novamente.'
       );
     } finally {
       setIsApplying(false);
@@ -101,9 +109,10 @@ export const RepositoryIssuesPage: React.FC = () => {
     setIsSubmittingPr(true);
     setActionErrorMessage(null);
     try {
-      if (isBackendConnected) {
-        await greenfieldApi.submitBounty(submitPrModalBounty.id, prUrl);
+      if (!isBackendConnected) {
+        throw new Error('Servidor backend offline. Não é possível submeter Pull Request no momento.');
       }
+      await greenfieldApi.submitBounty(submitPrModalBounty.id, prUrl);
       setActionSuccessMessage(
         `Pull Request submetido com sucesso! A tarefa agora está em 'SUBMITTED' aguardando revisão.`
       );
@@ -112,7 +121,7 @@ export const RepositoryIssuesPage: React.FC = () => {
       await loadData();
     } catch (err: any) {
       setActionErrorMessage(
-        err?.response?.data?.detail || 'Erro ao submeter Pull Request. Verifique a URL.'
+        err?.response?.data?.detail || err?.message || 'Erro ao submeter Pull Request. Verifique a URL.'
       );
     } finally {
       setIsSubmittingPr(false);
@@ -304,30 +313,11 @@ export const RepositoryIssuesPage: React.FC = () => {
 
                   {/* Botões de Ação Dinâmicos */}
                   <div className="flex items-center gap-2">
-                    {/* Botão de Candidatura (Disponível quando OPEN) */}
-                    {status === 'OPEN' && (
+                    {/* Botão de Candidatura (Disponível quando OPEN e possui bounty criada) */}
+                    {status === 'OPEN' && linkedBounty && (
                       <button
                         onClick={() => {
-                          const targetBounty = linkedBounty || {
-                            id: issue.bounty_id || 1,
-                            project_id: 1,
-                            repository_id: repoId,
-                            issuer_id: 1,
-                            hunter_id: null,
-                            issue_url: issue.html_url,
-                            issue_number: issue.number,
-                            issue_title: issue.title,
-                            issue_body: issue.body,
-                            amount_usdc: points,
-                            points: points,
-                            status: 'OPEN',
-                            escrow_pda: null,
-                            pr_url: null,
-                            tx_signature: null,
-                            claimed_at: null,
-                            created_at: new Date().toISOString(),
-                          };
-                          setApplyModalBounty(targetBounty);
+                          setApplyModalBounty(linkedBounty);
                         }}
                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#28B110] hover:brightness-110 text-[#101410] font-bold text-xs transition-all shadow-xs cursor-pointer"
                       >
@@ -336,30 +326,11 @@ export const RepositoryIssuesPage: React.FC = () => {
                       </button>
                     )}
 
-                    {/* Botão de Enviar PR (Disponível quando ASSIGNED) */}
-                    {status === 'ASSIGNED' && (
+                    {/* Botão de Enviar PR (Disponível quando ASSIGNED e possui bounty criada) */}
+                    {status === 'ASSIGNED' && linkedBounty && (
                       <button
                         onClick={() => {
-                          const targetBounty = linkedBounty || {
-                            id: issue.bounty_id || 2,
-                            project_id: 1,
-                            repository_id: repoId,
-                            issuer_id: 1,
-                            hunter_id: 2,
-                            issue_url: issue.html_url,
-                            issue_number: issue.number,
-                            issue_title: issue.title,
-                            issue_body: issue.body,
-                            amount_usdc: points,
-                            points: points,
-                            status: 'ASSIGNED',
-                            escrow_pda: null,
-                            pr_url: null,
-                            tx_signature: null,
-                            claimed_at: null,
-                            created_at: new Date().toISOString(),
-                          };
-                          setSubmitPrModalBounty(targetBounty);
+                          setSubmitPrModalBounty(linkedBounty);
                         }}
                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#192A17] hover:bg-[#28B110] text-[#28B110] hover:text-[#101410] font-semibold text-xs border border-[#28B110]/50 transition-all cursor-pointer"
                       >

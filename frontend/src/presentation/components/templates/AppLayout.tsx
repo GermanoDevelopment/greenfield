@@ -7,7 +7,7 @@ import LoginModal from '../molecules/LoginModal';
 import { WalletButton } from '../../../components/WalletButton';
 import { getChainDisplayLabel } from '../../../client';
 import { useApp } from '../../context/AppContext';
-import { Menu, X, RefreshCw } from 'lucide-react';
+import { Menu, X, AlertTriangle } from 'lucide-react';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -18,7 +18,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const isLanding = location.pathname === '/';
   const isErrorPage = location.pathname === '/404' || location.pathname === '/403';
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const { isBackendConnected, resetToDefaults, isAuthenticated, openLoginModal } = useApp();
+  const { isBackendConnected, backendError, isAuthenticated, openLoginModal } = useApp();
   const chainLabel = getChainDisplayLabel();
 
   // Abre automaticamente o modal de login se a rota foi redirecionada por falta de autenticação
@@ -34,6 +34,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     return (
       <div className="min-h-screen bg-[#141814] text-[#D2DFD1] flex flex-col font-sans selection:bg-[#28B110] selection:text-[#141814]">
         <Navbar />
+
+        {(!isBackendConnected || backendError) && (
+          <div className="bg-rose-950/80 border-b border-rose-800 px-4 py-2 text-center text-xs text-rose-200 flex items-center justify-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>
+              <strong>Servidor Offline:</strong> Não foi possível conectar ao backend da aplicação. Modos de simulação local estão desabilitados.
+            </span>
+          </div>
+        )}
 
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 lg:px-16 py-8">
           {children}
@@ -123,35 +132,35 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-mono font-medium ${
                 isBackendConnected
                   ? 'bg-[#182017] border-[#283426] text-[#28B110]'
-                  : 'bg-[#1e1c18] border-[#383020] text-amber-400'
+                  : 'bg-rose-950/40 border-rose-800/60 text-rose-400'
               }`}
               title={
                 isBackendConnected
                   ? 'Conectado à API FastAPI (PostgreSQL)'
-                  : 'Modo Demo Local Ativo'
+                  : 'Backend Offline / Inacessível'
               }
             >
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  isBackendConnected ? 'bg-[#28B110]' : 'bg-amber-400'
+                  isBackendConnected ? 'bg-[#28B110]' : 'bg-rose-500'
                 }`}
               />
-              <span>{isBackendConnected ? 'API Live' : 'Demo Mode'}</span>
+              <span>{isBackendConnected ? 'API Live' : 'API Offline'}</span>
             </div>
 
             <RoleSwitcher />
             <WalletButton />
-
-            <button
-              onClick={() => resetToDefaults()}
-              className="p-2 rounded-xl text-[#889887] hover:text-[#28B110] hover:bg-[#182017] border border-transparent hover:border-[#283426] transition-all hidden xl:flex items-center justify-center shrink-0 cursor-pointer"
-              title="Restaurar dados iniciais do MVP"
-              type="button"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
           </div>
         </header>
+
+        {(!isBackendConnected || backendError) && (
+          <div className="bg-rose-950/80 border-b border-rose-800 px-4 py-2 text-center text-xs text-rose-200 flex items-center justify-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>
+              <strong>Servidor Offline:</strong> Não foi possível conectar ao backend da aplicação. Modos de simulação local estão desabilitados.
+            </span>
+          </div>
+        )}
 
         {/* Page Body */}
         <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto">

@@ -19,6 +19,7 @@ import {
   greenfieldApi,
   type AdminStatsOut,
   type ApiBountyOut,
+  type ApiProjectOut,
   type ApiRepositoryOut,
   type ApiTrackedIssueOut,
 } from '../../services/api';
@@ -38,7 +39,9 @@ export const AdminPage: React.FC = () => {
   const [assignPoints, setAssignPoints] = useState<number>(250);
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // Repositories State
+  // Repositories & Projects State
+  const [projects, setProjects] = useState<ApiProjectOut[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [repos, setRepos] = useState<ApiRepositoryOut[]>([]);
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoDesc, setNewRepoDesc] = useState('');
@@ -73,13 +76,18 @@ export const AdminPage: React.FC = () => {
         setStats(null);
       }
 
-      // Repos
+      // Repos & Projects
       try {
-        const projects = await greenfieldApi.listProjects();
-        const allRepos = projects.flatMap((p) => p.repositories || []);
+        const projectsData = await greenfieldApi.listProjects();
+        setProjects(projectsData);
+        if (projectsData.length > 0) {
+          setSelectedProjectId((prev) => (prev !== null ? prev : projectsData[0].id));
+        }
+        const allRepos = projectsData.flatMap((p) => p.repositories || []);
         setRepos(allRepos);
       } catch (err) {
         console.warn('Erro ao carregar repositórios da API:', err);
+        setProjects([]);
         setRepos([]);
       }
 
@@ -117,13 +125,20 @@ export const AdminPage: React.FC = () => {
   const handleAddRepository = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRepoName.trim()) return;
+    if (!selectedProjectId) {
+      setFeedbackError('Selecione um projeto válido para vincular o repositório.');
+      return;
+    }
     setIsAddingRepo(true);
     setFeedbackSuccess(null);
     setFeedbackError(null);
 
     try {
+      if (!isBackendConnected) {
+        throw new Error('Servidor backend offline. Não é possível cadastrar repositório.');
+      }
       await greenfieldApi.admin.addRepository({
-        project_id: 1,
+        project_id: selectedProjectId,
         github_repo: newRepoName.trim(),
         description: newRepoDesc.trim() || undefined,
         default_branch: newRepoBranch.trim() || 'main',
@@ -135,7 +150,7 @@ export const AdminPage: React.FC = () => {
       await loadAdminData();
     } catch (err: any) {
       setFeedbackError(
-        err?.response?.data?.detail || 'Erro ao cadastrar repositório.'
+        err?.response?.data?.detail || err?.message || 'Erro ao cadastrar repositório.'
       );
     } finally {
       setIsAddingRepo(false);
@@ -148,17 +163,16 @@ export const AdminPage: React.FC = () => {
     setFeedbackSuccess(null);
     setFeedbackError(null);
     try {
-      if (isBackendConnected) {
-        const res = await greenfieldApi.admin.syncRepository(repoId);
-        setFeedbackSuccess(
-          `Sincronização concluída para ${repoName}: ${res.total_synced} issues verificadas, ${res.new_issues} novas adicionadas!`
-        );
-      } else {
-        setFeedbackSuccess(`[Demo] Simulação: 2 novas issues sincronizadas de ${repoName}.`);
+      if (!isBackendConnected) {
+        throw new Error('Servidor backend offline. Não é possível sincronizar repositório.');
       }
+      const res = await greenfieldApi.admin.syncRepository(repoId);
+      setFeedbackSuccess(
+        `Sincronização concluída para ${repoName}: ${res.total_synced} issues verificadas, ${res.new_issues} novas adicionadas!`
+      );
       await loadAdminData();
     } catch (err: any) {
-      setFeedbackError(err?.response?.data?.detail || 'Erro ao sincronizar repositório.');
+      setFeedbackError(err?.response?.data?.detail || err?.message || 'Erro ao sincronizar repositório.');
     } finally {
       setSyncingRepoId(null);
     }
@@ -172,18 +186,17 @@ export const AdminPage: React.FC = () => {
     setFeedbackSuccess(null);
     setFeedbackError(null);
     try {
-      if (isBackendConnected) {
-        await greenfieldApi.admin.assignReward(assigningIssue.id, assignPoints);
-      } else {
-        setUnrewardedIssues(unrewardedIssues.filter((i) => i.id !== assigningIssue.id));
+      if (!isBackendConnected) {
+        throw new Error('Servidor backend offline. Não é possível atribuir recompensas.');
       }
+      await greenfieldApi.admin.assignReward(assigningIssue.id, assignPoints);
       setFeedbackSuccess(
         `Reward de ${assignPoints} pts ($${(assignPoints / 100).toFixed(2)} USDC) atribuída com sucesso! Grant publicado publicamente.`
       );
       setAssigningIssue(null);
       await loadAdminData();
     } catch (err: any) {
-      setFeedbackError(err?.response?.data?.detail || 'Erro ao atribuir recompensa.');
+      setFeedbackError(err?.response?.data?.detail || err?.message || 'Erro ao atribuir recompensa.');
     } finally {
       setIsAssigning(false);
     }
@@ -198,14 +211,15 @@ export const AdminPage: React.FC = () => {
     setFeedbackError(null);
 
     try {
-      if (isBackendConnected) {
-        await greenfieldApi.updateBountyReward(bountyId, newPoints);
+      if (!isBackendConnected) {
+        throw new Error('Servidor backend offline. Não é possível atualizar recompensa.');
       }
+      await greenfieldApi.updateBountyReward(bountyId, newPoints);
       setFeedbackSuccess(`Pontuação da Bounty #${bountyId} atualizada para ${newPoints} pontos (${newPoints} USDC)!`);
       await loadAdminData();
     } catch (err: any) {
       setFeedbackError(
-        err?.response?.data?.detail || 'Erro ao atualizar recompensa da issue.'
+        err?.response?.data?.detail || err?.message || 'Erro ao atualizar recompensa da issue.'
       );
     } finally {
       setIsUpdatingReward(null);
@@ -219,22 +233,19 @@ export const AdminPage: React.FC = () => {
     setFeedbackError(null);
 
     try {
-      if (isBackendConnected) {
-        await greenfieldApi.admin.reviewSubmission(bountyId, {
-          action: 'APPROVE',
-        });
-      } else {
-        // Mock update
-        setSubmittedBounties(submittedBounties.filter((b) => b.id !== bountyId));
+      if (!isBackendConnected) {
+        throw new Error('Servidor backend offline. Não é possível aprovar task.');
       }
-
+      await greenfieldApi.admin.reviewSubmission(bountyId, {
+        action: 'APPROVE',
+      });
       setFeedbackSuccess(
         `Task #${bountyId} aprovada com sucesso! Pagamento em USDC liquidado on-chain via Solana Devnet.`
       );
       await loadAdminData();
     } catch (err: any) {
       setFeedbackError(
-        err?.response?.data?.detail || 'Erro ao aprovar task. Verifique o saldo do cofre Devnet.'
+        err?.response?.data?.detail || err?.message || 'Erro ao aprovar task. Verifique o saldo do cofre Devnet.'
       );
     } finally {
       setIsProcessingReview(null);
@@ -249,15 +260,13 @@ export const AdminPage: React.FC = () => {
     setFeedbackError(null);
 
     try {
-      if (isBackendConnected) {
-        await greenfieldApi.admin.reviewSubmission(rejectingBounty.id, {
-          action: 'REJECT',
-          reason: rejectionReason.trim() || undefined,
-        });
-      } else {
-        setSubmittedBounties(submittedBounties.filter((b) => b.id !== rejectingBounty.id));
+      if (!isBackendConnected) {
+        throw new Error('Servidor backend offline. Não é possível rejeitar task.');
       }
-
+      await greenfieldApi.admin.reviewSubmission(rejectingBounty.id, {
+        action: 'REJECT',
+        reason: rejectionReason.trim() || undefined,
+      });
       setFeedbackSuccess(
         `Task #${rejectingBounty.id} rejeitada e revertida para ASSIGNED. O desenvolvedor poderá revisar o código e submeter um novo PR.`
       );
@@ -266,7 +275,7 @@ export const AdminPage: React.FC = () => {
       await loadAdminData();
     } catch (err: any) {
       setFeedbackError(
-        err?.response?.data?.detail || 'Erro ao rejeitar submissão.'
+        err?.response?.data?.detail || err?.message || 'Erro ao rejeitar submissão.'
       );
     } finally {
       setIsProcessingReview(null);
@@ -520,7 +529,29 @@ export const AdminPage: React.FC = () => {
               Ao cadastrar um novo repositório, o Greenfield passará a rastrear issues e habilitar bounties.
             </p>
 
-            <form onSubmit={handleAddRepository} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <form onSubmit={handleAddRepository} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs text-[#889887] block mb-1 font-mono">
+                  Projeto Greenfield:
+                </label>
+                <select
+                  value={selectedProjectId || ''}
+                  onChange={(e) => setSelectedProjectId(Number(e.target.value))}
+                  required
+                  className="w-full bg-[#101410] border border-[#252E24] rounded-xl px-3 py-2 text-xs text-[#D2DFD1] focus:outline-none focus:border-[#28B110]"
+                >
+                  {projects.length === 0 ? (
+                    <option value="">Carregando projetos...</option>
+                  ) : (
+                    projects.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-[#101410] text-[#D2DFD1]">
+                        {p.github_repo || `Projeto #${p.id}`}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
               <div>
                 <label className="text-xs text-[#889887] block mb-1 font-mono">
                   Repositório (owner/repo):
@@ -561,10 +592,10 @@ export const AdminPage: React.FC = () => {
                 />
               </div>
 
-              <div className="md:col-span-3 flex justify-end pt-2">
+              <div className="md:col-span-4 flex justify-end pt-2">
                 <button
                   type="submit"
-                  disabled={isAddingRepo || !newRepoName.trim()}
+                  disabled={isAddingRepo || !newRepoName.trim() || !selectedProjectId}
                   className="px-5 py-2.5 rounded-xl bg-[#28B110] hover:brightness-110 disabled:opacity-50 text-[#101410] font-bold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
