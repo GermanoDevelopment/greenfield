@@ -131,6 +131,9 @@ class BountyModel(Base, TimestampMixin):
     tx_signature: Mapped[str | None] = mapped_column(String(128), nullable=True)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     claim_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    payout_lease_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     project: Mapped[ProjectModel] = relationship(back_populates="bounties")
     repository: Mapped[RepositoryModel | None] = relationship(back_populates="bounties")

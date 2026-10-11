@@ -1,8 +1,9 @@
 import logging
 import re
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -397,24 +398,55 @@ async def submit_bounty(
     return bounty
 
 
-async def _reserve_completion(session: AsyncSession, bounty: BountyModel) -> None:
-    """Atomically move SUBMITTED -> CLAIMABLE so that only one caller completes a bounty.
+# A payout waits up to 30s for confirmation (solana_service._confirm_signature); the lease
+# is longer than that, so a live payout keeps its lease and a crashed one frees it soon.
+PAYOUT_LEASE_SECONDS = 120
 
-    The webhook and a manual complete can arrive together; both read SUBMITTED before
-    either commits, and without this the payout would run twice. The conditional UPDATE
-    lets exactly one of them through, and the other gets a 409.
+
+async def reserve_payout(
+    session: AsyncSession,
+    bounty: BountyModel,
+    *,
+    from_statuses: Sequence[BountyStatus],
+    to_status: BountyStatus | None = None,
+) -> None:
+    """Atomically take the exclusive right to pay (or approve) a bounty.
+
+    Every path that starts a payout goes through here: completing a bounty, retrying a
+    failed one, and paying a CLAIMABLE one after the hunter links a wallet. One conditional
+    UPDATE checks the expected status and that nobody else holds an unexpired lease, then
+    moves to `to_status` (if given) and takes the lease. Exactly one concurrent caller wins;
+    the others get a 409 and must not pay.
+
+    The caller owns the transaction and must release the lease in the same commit that
+    records the outcome (`release_payout`). A holder that crashes mid-payout frees the
+    bounty once the lease expires.
+
+    Note for retries: a lease that expired because a confirmation timed out does not say
+    whether that transaction landed. Check the earlier signature before paying again.
     """
+    now = datetime.now(UTC)
+    values: dict = {"payout_lease_until": now + timedelta(seconds=PAYOUT_LEASE_SECONDS)}
+    if to_status is not None:
+        values["status"] = to_status.value
     result = await session.execute(
         update(BountyModel)
         .where(
             BountyModel.id == bounty.id,
-            BountyModel.status == BountyStatus.SUBMITTED.value,
+            BountyModel.status.in_([status.value for status in from_statuses]),
+            or_(BountyModel.payout_lease_until.is_(None), BountyModel.payout_lease_until < now),
         )
-        .values(status=BountyStatus.CLAIMABLE.value)
+        .values(**values)
+        .execution_options(synchronize_session=False)
     )
     if result.rowcount != 1:
-        raise ConflictError("Bounty is already being completed")
-    await session.refresh(bounty, attribute_names=["status", "updated_at"])
+        raise ConflictError("A payout for this bounty is already in progress or it changed state")
+    await session.refresh(bounty, attribute_names=["status", "updated_at", "payout_lease_until"])
+
+
+def release_payout(bounty: BountyModel) -> None:
+    """Give the lease back. Call it before the commit that records how the payout ended."""
+    bounty.payout_lease_until = None
 
 
 async def complete_bounty(
@@ -438,7 +470,12 @@ async def complete_bounty(
     if not pr.get("merged"):
         raise ValidationError("Pull request is not merged yet")
 
-    await _reserve_completion(session, bounty)
+    await reserve_payout(
+        session,
+        bounty,
+        from_statuses=[BountyStatus.SUBMITTED],
+        to_status=BountyStatus.CLAIMABLE,
+    )
 
     if solana_service.is_onchain_enabled():
         # Escrow mode, Invariant 1: approve_claim unlocks the developer's own claim
@@ -447,6 +484,7 @@ async def complete_bounty(
             session,
             lambda: solana_service.approve_claim_onchain(bounty.id),
         )
+        release_payout(bounty)
         await session.commit()
     else:
         # Custodial mode: record CLAIMABLE first, so the verified merge survives
@@ -461,10 +499,13 @@ async def complete_bounty(
 async def _pay_custodial(session: AsyncSession, bounty: BountyModel, hunter: UserModel) -> None:
     """Paga do tesouro e move CLAIMABLE -> CLAIMED, ou -> CLAIM_FAILED com o motivo.
 
-    Sem carteira do hunter ou sem tesouro configurado, nada é tentado e a bounty
-    fica CLAIMABLE.
+    Quem chama já reservou o pagamento (`reserve_payout`). Sem carteira do hunter ou sem
+    tesouro configurado, nada é tentado e a bounty fica CLAIMABLE. Em qualquer desfecho a
+    reserva é devolvida no mesmo commit que grava o resultado.
     """
     if not hunter.wallet or not solana_service.is_custodial_enabled():
+        release_payout(bounty)
+        await session.commit()
         return
     try:
         tx_sig = await solana_service.execute_bounty_payout(
@@ -480,6 +521,7 @@ async def _pay_custodial(session: AsyncSession, bounty: BountyModel, hunter: Use
         bounty.tx_signature = tx_sig
         bounty.claimed_at = datetime.now(UTC)
         bounty.claim_error = None
+    release_payout(bounty)
     await session.commit()
 
 
