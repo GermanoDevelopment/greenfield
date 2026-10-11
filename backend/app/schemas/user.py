@@ -51,10 +51,42 @@ class UserOut(BaseModel):
     )
 
 
+class WalletChallengeOut(BaseModel):
+    nonce: str = Field(description="Nonce aleatório único gerado pelo servidor")
+    message: str = Field(description="Mensagem a ser assinada pela carteira Solana do usuário")
+    expires_at: int = Field(description="Timestamp unix de expiração do desafio")
+
+
+class WalletVerifyRequest(BaseModel):
+    wallet: str = Field(
+        description="Endereço de carteira Solana (base58 de 32 bytes) válido",
+        examples=["9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"],
+    )
+    nonce: str = Field(
+        description="Nonce recebido do endpoint /users/me/wallet/challenge",
+    )
+    signature: str = Field(
+        description="Assinatura ed25519 em base58 da mensagem de desafio",
+    )
+
+    @field_validator("wallet")
+    @classmethod
+    def wallet_is_valid(cls, v: str) -> str:
+        return validate_solana_wallet(v)
+
+
 class UserUpdate(BaseModel):
     wallet: str = Field(
         description="Endereço de carteira Solana (base58 de 32 bytes) válido",
         examples=["9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"],
+    )
+    nonce: str | None = Field(
+        default=None,
+        description="Nonce recebido de /users/me/wallet/challenge",
+    )
+    signature: str | None = Field(
+        default=None,
+        description="Assinatura ed25519 em base58 da mensagem de desafio",
     )
 
     @field_validator("wallet")

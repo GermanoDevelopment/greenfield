@@ -62,3 +62,28 @@ def decode_token(token: str) -> dict[str, Any]:
         raise TokenError("Token expired") from e
     except jwt.InvalidTokenError as e:
         raise TokenError("Invalid token") from e
+
+
+def generate_oauth_state(expires_in_seconds: int = 600) -> str:
+    """Gera um state seguro e assinado criptograficamente com HMAC para proteção contra CSRF."""
+    settings = get_settings()
+    now = datetime.now(UTC)
+    payload = {
+        "nonce": secrets.token_urlsafe(16),
+        "iat": now,
+        "exp": now + timedelta(seconds=expires_in_seconds),
+        "purpose": "github_oauth_csrf",
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def verify_oauth_state(state: str | None) -> bool:
+    """Valida se o state de OAuth foi emitido pelo sistema e não está expirado."""
+    if not state:
+        return False
+    settings = get_settings()
+    try:
+        payload = jwt.decode(state, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        return payload.get("purpose") == "github_oauth_csrf"
+    except (jwt.PyJWTError, Exception):
+        return False
