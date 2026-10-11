@@ -22,6 +22,7 @@ import {
   type ApiRepositoryOut,
   type ApiTrackedIssueOut,
 } from '../../services/api';
+import { pointsToUsdc } from '../../core/domain/types';
 
 export const AdminPage: React.FC = () => {
   const { isBackendConnected, currentUser } = useApp();
@@ -178,7 +179,7 @@ export const AdminPage: React.FC = () => {
         setUnrewardedIssues(unrewardedIssues.filter((i) => i.id !== assigningIssue.id));
       }
       setFeedbackSuccess(
-        `Reward de ${assignPoints} pts ($${(assignPoints / 100).toFixed(2)} USDC) atribuída com sucesso! Grant publicado publicamente.`
+        `Reward de ${assignPoints} pts ($${pointsToUsdc(assignPoints).toFixed(2)} USDC) atribuída com sucesso! Grant publicado publicamente.`
       );
       setAssigningIssue(null);
       await loadAdminData();
@@ -1001,7 +1002,7 @@ export const AdminPage: React.FC = () => {
                     className="w-full bg-[#101410] border border-[#252E24] rounded-xl px-3 py-2 text-sm text-[#D2DFD1] font-mono focus:outline-none focus:border-[#28B110]"
                   />
                   <div className="px-3 py-2 rounded-xl bg-[#1F291E] border border-[#28B110]/40 text-[#28B110] font-mono text-xs whitespace-nowrap">
-                    = ${(assignPoints / 100).toFixed(2)} USDC
+                    = ${pointsToUsdc(assignPoints).toFixed(2)} USDC
                   </div>
                 </div>
               </div>

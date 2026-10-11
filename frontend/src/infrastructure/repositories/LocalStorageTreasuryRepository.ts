@@ -1,5 +1,5 @@
 import type { ITreasuryRepository } from '../../core/domain/ports';
-import type { Treasury } from '../../core/domain/types';
+import { pointsToUsdc, type Treasury } from '../../core/domain/types';
 import { greenfieldApi } from '../../services/api';
 
 const TOTAL_COMMUNITY_POOL = 25000;
@@ -14,7 +14,7 @@ export class LocalStorageTreasuryRepository implements ITreasuryRepository {
       for (const b of bounties) {
         const usdc = b.amount_usdc
           ? b.amount_usdc / 1_000_000
-          : (b.points || 0) / 100;
+          : pointsToUsdc(b.points || 0);
 
         if (b.status === 'COMPLETED') {
           claimed += usdc;

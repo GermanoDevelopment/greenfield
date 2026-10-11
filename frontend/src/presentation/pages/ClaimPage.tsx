@@ -78,7 +78,7 @@ export const ClaimPage: React.FC = () => {
                   className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#28B110] hover:bg-[#28B110]/90 text-[#1B1E1A] text-base font-black flex items-center justify-center gap-2 shadow-lg shadow-[#28B110]/20 hover:scale-105 transition-all cursor-pointer shrink-0"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>CLAIM ${bounty.usdc_amount} USDC</span>
+                  <span>CLAIM ${bounty.usdc_amount.toFixed(2)} USDC</span>
                 </button>
               </div>
             ))}

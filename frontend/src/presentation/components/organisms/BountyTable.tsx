@@ -111,7 +111,7 @@ export const BountyTable: React.FC<BountyTableProps> = ({
                     className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#28B110] to-emerald-600 hover:brightness-110 text-[#141814] font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-[#28B110]/20 transition-all cursor-pointer interactive-btn"
                   >
                     <Sparkles className="w-4 h-4" />
-                    <span>Resgatar ${bounty.usdc_amount} USDC</span>
+                    <span>Resgatar ${bounty.usdc_amount.toFixed(2)} USDC</span>
                   </button>
                 ) : (
                   <Link
@@ -221,7 +221,7 @@ export const BountyTable: React.FC<BountyTableProps> = ({
                           className="px-3.5 py-2 min-h-[38px] rounded-xl bg-gradient-to-r from-[#28B110] to-emerald-600 hover:brightness-110 text-[#141814] text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-[#28B110]/20 transition-all cursor-pointer interactive-btn"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
-                          <span>Resgatar ${bounty.usdc_amount}</span>
+                          <span>Resgatar ${bounty.usdc_amount.toFixed(2)} USDC</span>
                         </button>
                       )}
 

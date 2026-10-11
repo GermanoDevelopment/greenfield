@@ -16,7 +16,7 @@ export const MaintainerDashboard: React.FC = () => {
 
   // 5 Métricas do Mantenedor (Seção 6.1 e 9.1)
   const isTreasuryLow = treasury ? treasury.available_usdc < 1000 : false;
-  const treasuryBalance = treasury ? `$${treasury.available_usdc.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '$0.00';
+  const treasuryBalance = treasury ? `$${treasury.available_usdc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
   const activeBounties = bounties.filter(
     (b) => b.status !== 'CLAIMED' && b.status !== 'CANCELLED'
   ).length;

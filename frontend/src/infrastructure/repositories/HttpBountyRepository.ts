@@ -1,5 +1,12 @@
 import type { IBountyRepository } from '../../core/domain/ports';
-import type { Bounty, BountyStatus, Proposal, User } from '../../core/domain/types';
+import {
+  pointsToUsdc,
+  type Bounty,
+  type BountyStatus,
+  type Proposal,
+  type Repository,
+  type User,
+} from '../../core/domain/types';
 import { greenfieldApi, type ApiBountyOut, type ApiUserOut } from '../../services/api';
 
 function mapApiUserToDomain(user?: ApiUserOut): User | undefined {
@@ -32,8 +39,15 @@ function mapApiStatusToDomain(status: string): BountyStatus {
   }
 }
 
+function extractRepoFromUrl(url?: string): { owner: string; name: string } | undefined {
+  if (!url) return undefined;
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
+  if (!match) return undefined;
+  return { owner: match[1], name: match[2].replace(/\.git$/, '') };
+}
+
 function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
-  const usdcAmount = api.amount_usdc ? api.amount_usdc / 1_000_000 : api.points / 100;
+  const usdcAmount = api.amount_usdc ? api.amount_usdc / 1_000_000 : pointsToUsdc(api.points);
   const domainStatus = mapApiStatusToDomain(api.status);
 
   const proposals: Proposal[] = (api.applicants || []).map((app) => ({
@@ -61,6 +75,19 @@ function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
       status: api.status === 'COMPLETED' ? 'CLOSED' : 'OPEN',
     },
     repository_id: String(api.repository_id || api.project_id),
+    repository: (() => {
+      const parsed = extractRepoFromUrl(api.issue_url || api.pr_url || undefined);
+      if (!parsed) return undefined;
+      return {
+        id: String(api.repository_id || api.project_id),
+        github_repository_id: Number(api.repository_id || api.project_id) || 1,
+        owner: parsed.owner,
+        name: parsed.name,
+        github_url: `https://github.com/${parsed.owner}/${parsed.name}`,
+        maintainer_user_id: String(api.issuer_id),
+        approved_for_round: true,
+      } as Repository;
+    })(),
     maintainer_id: String(api.issuer_id),
     maintainer: mapApiUserToDomain(api.issuer),
     developer_id: api.hunter_id ? String(api.hunter_id) : undefined,

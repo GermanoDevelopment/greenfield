@@ -18,6 +18,7 @@ import {
   type ApiGitHubIssueOut,
   type ApiBountyOut,
 } from '../../services/api';
+import { pointsToUsdc } from '../../core/domain/types';
 
 // Cada issue rastreada corresponde a uma pontuação fixa, sem valor monetário associado
 const ISSUE_POINTS = 120;
@@ -136,7 +137,7 @@ export const RepositoryIssuesPage: React.FC = () => {
             Issues & Bounties do Repositório
           </h1>
           <p className="text-sm text-[#889887] mt-1">
-            Cada issue resolvida concede {ISSUE_POINTS} pontos ao desenvolvedor após o merge do PR.
+            Cada issue resolvida concede {ISSUE_POINTS} pontos (${pointsToUsdc(ISSUE_POINTS).toFixed(2)} USDC) ao desenvolvedor após o merge do PR.
           </p>
         </div>
 
@@ -249,7 +250,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                       <div className="text-xs text-[#889887] font-medium">Recompensa</div>
                       <div className="text-lg sm:text-xl font-black text-[#28B110] flex items-center justify-end gap-1">
                         <Coins className="w-4 h-4" />
-                        <span>{points} pontos</span>
+                        <span>{points} pontos (${pointsToUsdc(points).toFixed(2)} USDC)</span>
                       </div>
                     </div>
 
@@ -318,7 +319,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                             issue_number: issue.number,
                             issue_title: issue.title,
                             issue_body: issue.body,
-                            amount_usdc: points,
+                            amount_usdc: pointsToUsdc(points),
                             points: points,
                             status: 'OPEN',
                             escrow_pda: null,
@@ -350,7 +351,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                             issue_number: issue.number,
                             issue_title: issue.title,
                             issue_body: issue.body,
-                            amount_usdc: points,
+                            amount_usdc: pointsToUsdc(points),
                             points: points,
                             status: 'ASSIGNED',
                             escrow_pda: null,
@@ -424,7 +425,7 @@ export const RepositoryIssuesPage: React.FC = () => {
             <div className="p-3 bg-[#101410] rounded-xl border border-[#252E24] text-xs space-y-1">
               <div className="flex justify-between text-[#889887]">
                 <span>Recompensa Fixada:</span>
-                <span className="font-bold text-[#28B110]">{applyModalBounty.points} pontos</span>
+                <span className="font-bold text-[#28B110]">{applyModalBounty.points} pontos (${pointsToUsdc(applyModalBounty.points).toFixed(2)} USDC)</span>
               </div>
               <div className="flex justify-between text-[#889887]">
                 <span>Invariante:</span>
@@ -482,7 +483,7 @@ export const RepositoryIssuesPage: React.FC = () => {
 
             <div className="p-3 bg-[#101410] rounded-xl border border-[#252E24] text-xs text-[#889887] leading-relaxed">
               Ao submeter o PR, o status mudará para <strong className="text-blue-400">SUBMITTED</strong>.
-              O mantenedor ou administrador do projeto irá revisar o código e, após o merge, <strong className="text-[#28B110]">{submitPrModalBounty.points} pontos</strong> serão creditados ao seu perfil.
+              O mantenedor ou administrador do projeto irá revisar o código e, após o merge, <strong className="text-[#28B110]">{submitPrModalBounty.points} pontos (${pointsToUsdc(submitPrModalBounty.points).toFixed(2)} USDC)</strong> serão creditados ao seu perfil.
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">

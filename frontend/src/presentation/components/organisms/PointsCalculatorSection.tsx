@@ -21,7 +21,7 @@ export const PointsCalculatorSection: React.FC = () => {
             Conversor de Pontos
           </h3>
           <p className="text-xs text-slate-400">
-            Regra fixa: 100 pontos = 1 USDC (sem volatilidade).
+            Regra fixa: 100 pontos = $1.00 USDC (sem volatilidade).
           </p>
         </div>
 

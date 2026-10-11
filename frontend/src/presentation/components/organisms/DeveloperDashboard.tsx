@@ -87,7 +87,7 @@ export const DeveloperDashboard: React.FC = () => {
               </h3>
               <p className="text-sm text-[#889887] mt-1 max-w-xl">
                 O Pull Request da Issue #{topClaimable.issue?.number} foi mergeado pelo mantenedor.
-                Sua recompensa de <strong className="text-[#D2DFD1]">{topClaimable.points.toLocaleString()} pontos</strong> está pronta para ser convertida em USDC.
+                Sua recompensa de <strong className="text-[#D2DFD1]">{topClaimable.points.toLocaleString()} pontos (${topClaimable.usdc_amount.toFixed(2)} USDC)</strong> está pronta para ser convertida em USDC.
               </p>
             </div>
           </div>
@@ -96,7 +96,7 @@ export const DeveloperDashboard: React.FC = () => {
             onClick={() => setSelectedBountyForClaim(topClaimable)}
             className="w-full md:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-[#28B110] to-emerald-600 hover:brightness-110 text-[#141814] text-base font-black tracking-tight shadow-md shadow-[#28B110]/20 transition-all flex items-center justify-center gap-3 cursor-pointer shrink-0 interactive-btn"
           >
-            <span>RESGATAR ${topClaimable.usdc_amount} USDC</span>
+            <span>RESGATAR ${topClaimable.usdc_amount.toFixed(2)} USDC</span>
             <ArrowRight className="w-5 h-5" />
           </button>
         </div>

@@ -22,11 +22,14 @@ export const PaymentHistoryPage: React.FC = () => {
       const q = searchQuery.toLowerCase();
       const issueTitle = b.issue?.title?.toLowerCase() || '';
       const repoName = b.repository?.name?.toLowerCase() || '';
+      const repoOwner = b.repository?.owner?.toLowerCase() || '';
+      const fullRepo = repoOwner && repoName ? `${repoOwner}/${repoName}` : '';
       const devName = b.developer?.github_username?.toLowerCase() || '';
       const signature = b.claim?.transaction_signature?.toLowerCase() || '';
       return (
         issueTitle.includes(q) ||
         repoName.includes(q) ||
+        fullRepo.includes(q) ||
         devName.includes(q) ||
         signature.includes(q)
       );
@@ -110,7 +113,7 @@ export const PaymentHistoryPage: React.FC = () => {
                         {bounty.issue?.title}
                       </h4>
                       <span className="text-[11px] text-[#889887] font-mono">
-                        {bounty.repository?.name}
+                        {bounty.repository?.owner ? `${bounty.repository.owner}/${bounty.repository.name}` : bounty.repository?.name}
                       </span>
                     </div>
 
@@ -181,7 +184,7 @@ export const PaymentHistoryPage: React.FC = () => {
                           #{bounty.issue?.number} {bounty.issue?.title}
                         </div>
                         <span className="text-[11px] text-[#889887] font-mono flex items-center gap-1 mt-0.5">
-                          {bounty.repository?.name}
+                          {bounty.repository?.owner ? `${bounty.repository.owner}/${bounty.repository.name}` : bounty.repository?.name}
                           {bounty.pr && (
                             <span className="text-purple-400 flex items-center gap-0.5 ml-1">
                               <GitPullRequest className="w-3 h-3" /> PR #{bounty.pr.number}

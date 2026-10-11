@@ -18,7 +18,7 @@ export const PointsUsdcConverter: React.FC = () => {
         <span className="font-semibold uppercase tracking-wider text-slate-300">
           Conversor de Sistema de Pontos
         </span>
-        <span className="font-mono text-emerald-400">100 pts = 1 USDC</span>
+        <span className="font-mono text-emerald-400">100 pts = $1.00 USDC</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-center">

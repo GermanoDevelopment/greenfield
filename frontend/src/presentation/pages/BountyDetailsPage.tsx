@@ -181,7 +181,7 @@ export const BountyDetailsPage: React.FC = () => {
         <div className="p-5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col items-center text-center shrink-0 min-w-[220px]">
           <span className="text-xs uppercase font-mono text-slate-400">Recompensa Garantida</span>
           <div className="text-3xl font-extrabold font-mono text-white mt-1">
-            ${bounty.usdc_amount} <span className="text-emerald-400 text-xl">USDC</span>
+            ${bounty.usdc_amount.toFixed(2)} <span className="text-emerald-400 text-xl">USDC</span>
           </div>
           <div className="mt-2">
             <PointsBadge points={bounty.points} size="sm" />
@@ -494,7 +494,7 @@ export const BountyDetailsPage: React.FC = () => {
               className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-base flex items-center gap-2 shadow-xl shadow-emerald-500/20 hover:scale-105 transition-all cursor-pointer animate-pulse"
             >
               <Sparkles className="w-5 h-5" />
-              <span>CLAIM ${bounty.usdc_amount} USDC</span>
+              <span>CLAIM ${bounty.usdc_amount.toFixed(2)} USDC</span>
             </button>
           )}
 
