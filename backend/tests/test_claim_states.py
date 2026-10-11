@@ -1,11 +1,12 @@
 """Payment state machine: CLAIMABLE, CLAIMED and CLAIM_FAILED (#20)."""
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.core.config import get_settings
-from app.services import solana_service
+from app.services import github_service, solana_service
 
 WALLET = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 PAYOUT = "app.services.solana_service.execute_bounty_payout"
@@ -109,6 +110,36 @@ async def test_no_treasury_stays_claimable_without_paying(
         resp = await _complete(client, submitted_bounty, auth_headers)
     assert resp.json()["status"] == "CLAIMABLE"
     payout.assert_not_called()
+
+
+async def test_concurrent_complete_pays_once(
+    client, submitted_bounty, auth_headers, hunter_wallet, custodial, monkeypatch
+):
+    """The webhook and a manual complete can land together: only one may pay."""
+    original = github_service.fetch_pull_request
+
+    async def slow_fetch(pr_url):
+        await asyncio.sleep(0.2)  # GitHub latency between the status check and the commit
+        return await original(pr_url)
+
+    monkeypatch.setattr(github_service, "fetch_pull_request", slow_fetch)
+    payout = AsyncMock(return_value="confirmed_sig_123")
+
+    async def late_complete():
+        # Starts while the first call is still waiting on GitHub, so it also passes the
+        # SUBMITTED check before the first one commits.
+        await asyncio.sleep(0.05)
+        return await _complete(client, submitted_bounty, auth_headers)
+
+    with patch(PAYOUT, payout):
+        responses = await asyncio.gather(
+            _complete(client, submitted_bounty, auth_headers), late_complete()
+        )
+
+    assert sorted(r.status_code for r in responses) == [200, 409]
+    payout.assert_awaited_once()
+    bounty = await client.get(f"/api/v1/bounties/{submitted_bounty}")
+    assert bounty.json()["status"] == "CLAIMED"
 
 
 async def test_failed_payout_cannot_be_cancelled_or_completed_again(

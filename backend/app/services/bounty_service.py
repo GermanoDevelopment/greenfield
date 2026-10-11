@@ -2,7 +2,7 @@ import logging
 import re
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -397,6 +397,26 @@ async def submit_bounty(
     return bounty
 
 
+async def _reserve_completion(session: AsyncSession, bounty: BountyModel) -> None:
+    """Atomically move SUBMITTED -> CLAIMABLE so that only one caller completes a bounty.
+
+    The webhook and a manual complete can arrive together; both read SUBMITTED before
+    either commits, and without this the payout would run twice. The conditional UPDATE
+    lets exactly one of them through, and the other gets a 409.
+    """
+    result = await session.execute(
+        update(BountyModel)
+        .where(
+            BountyModel.id == bounty.id,
+            BountyModel.status == BountyStatus.SUBMITTED.value,
+        )
+        .values(status=BountyStatus.CLAIMABLE.value)
+    )
+    if result.rowcount != 1:
+        raise ConflictError("Bounty is already being completed")
+    await session.refresh(bounty, attribute_names=["status", "updated_at"])
+
+
 async def complete_bounty(
     session: AsyncSession, bounty: BountyModel, actor: UserModel
 ) -> BountyModel:
@@ -418,7 +438,7 @@ async def complete_bounty(
     if not pr.get("merged"):
         raise ValidationError("Pull request is not merged yet")
 
-    _transition(bounty, BountyStatus.CLAIMABLE)
+    await _reserve_completion(session, bounty)
 
     if solana_service.is_onchain_enabled():
         # Escrow mode, Invariant 1: approve_claim unlocks the developer's own claim
