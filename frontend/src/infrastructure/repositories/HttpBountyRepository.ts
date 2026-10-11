@@ -101,6 +101,15 @@ function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
 }
 
 export class HttpBountyRepository implements IBountyRepository {
+  async checkConnectivity(): Promise<boolean> {
+    try {
+      await greenfieldApi.getHealth();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async getAll(): Promise<Bounty[]> {
     const data = await greenfieldApi.listBounties();
     return data.map(mapApiBountyToDomain);

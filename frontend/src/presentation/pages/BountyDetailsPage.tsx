@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   ExternalLink,
   GitPullRequest,
-  GitMerge,
   Sparkles,
   Shield,
   Code2,
@@ -29,8 +28,6 @@ export const BountyDetailsPage: React.FC = () => {
     currentUser,
     submitProposal,
     acceptProposalAndAssign,
-    openPullRequest,
-    mergePullRequest,
     solanaService,
   } = useApp();
 
@@ -88,39 +85,6 @@ export const BountyDetailsPage: React.FC = () => {
     setActionError(null);
     try {
       await acceptProposalAndAssign(bounty.id, proposalId);
-    } catch (err: any) {
-      setActionError(err.message);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // 3. Desenvolvedor abre Pull Request
-  const handleOpenPr = async () => {
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      const prNumber = Math.floor(Math.random() * 80) + 20;
-      await openPullRequest(bounty.id, {
-        github_pr_id: Date.now(),
-        number: prNumber,
-        title: `feat: resolve issue #${bounty.issue?.number} with verified implementation`,
-        url: `https://github.com/${bounty.repository?.owner}/${bounty.repository?.name}/pull/${prNumber}`,
-        author_github_username: currentUser.github_username,
-      });
-    } catch (err: any) {
-      setActionError(err.message);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // 4. Mantenedor faz Merge do PR e Plataforma Liquida o Pagamento Automatizado
-  const handleMergePr = async () => {
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      await mergePullRequest(bounty.id);
     } catch (err: any) {
       setActionError(err.message);
     } finally {
@@ -440,92 +404,122 @@ export const BountyDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Painel Interativo de Ciclo de Vida */}
-      <div className="p-6 rounded-2xl bg-slate-900 border-2 border-emerald-500/30 shadow-lg flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-base font-bold text-white">
-              Painel Interativo de Demonstração (Nova Regra de Negócio)
+      {/* Painel de Status do Ciclo de Vida e Resgate */}
+      {(bounty.status === 'CLAIMABLE' || (bounty.status === 'CLAIMED' && bounty.claim) || bounty.status === 'ASSIGNED' || bounty.status === 'PR_OPEN') && (
+        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>Status do Ciclo de Vida da Bounty</span>
             </h3>
+            <span className="text-xs font-mono text-slate-400">
+              Estado: <strong className="text-emerald-400">{bounty.status}</strong>
+            </span>
           </div>
-          <span className="text-xs font-mono text-slate-400">
-            Ações disponíveis para o estado: <strong>{bounty.status}</strong>
-          </span>
-        </div>
 
-        {actionError && (
-          <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300 text-xs">
-            {actionError}
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-3 pt-2">
-          {/* 1. Abrir PR (se ASSIGNED ou IN_PROGRESS) */}
-          {(bounty.status === 'ASSIGNED' || bounty.status === 'IN_PROGRESS') && (
-            <DesygenButton
-              variant="primary"
-              size="md"
-              isLoading={actionLoading}
-              onClick={handleOpenPr}
-              icon={<GitPullRequest className="w-4 h-4" />}
-            >
-              Simular Abertura de Pull Request no GitHub
-            </DesygenButton>
-          )}
-
-          {/* 2. Fazer o Merge (se PR_OPEN) -> Aciona pagamento automático */}
-          {bounty.status === 'PR_OPEN' && (
-            <DesygenButton
-              variant="primary"
-              size="md"
-              isLoading={actionLoading}
-              onClick={handleMergePr}
-              icon={<GitMerge className="w-4 h-4" />}
-            >
-              Merge do PR pelo Mantenedor (Pagamento Automático da Plataforma)
-            </DesygenButton>
-          )}
-
-          {/* 3. Fallback de Claim (se CLAIMABLE) */}
-          {bounty.status === 'CLAIMABLE' && (
-            <button
-              onClick={() => setIsClaimModalOpen(true)}
-              className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-base flex items-center gap-2 shadow-xl shadow-emerald-500/20 hover:scale-105 transition-all cursor-pointer animate-pulse"
-            >
-              <Sparkles className="w-5 h-5" />
-              <span>CLAIM ${bounty.usdc_amount} USDC</span>
-            </button>
-          )}
-
-          {/* 4. Concluído e Liquidado (CLAIMED) */}
-          {bounty.status === 'CLAIMED' && bounty.claim && (
-            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-[#145907]/20 border border-[#28B110]/40">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-6 h-6 text-[#28B110] shrink-0" />
-                <div>
-                  <h4 className="text-sm font-bold text-white">
-                    Recompensa Paga Automaticamente pela Plataforma!
-                  </h4>
-                  <span className="text-xs text-[#D9EED6]/80 font-mono">
-                    Assinatura Solana: {bounty.claim.transaction_signature.slice(0, 24)}...
-                  </span>
-                </div>
-              </div>
-
-              <a
-                href={solanaService.getExplorerUrl(bounty.claim.transaction_signature)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 rounded-lg bg-[#145907] hover:bg-[#0e4104] text-[#D9EED6] border border-[#28B110]/40 text-xs font-semibold flex items-center gap-2 transition-colors shrink-0"
-              >
-                <span>Ver no Solana Explorer</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+          {actionError && (
+            <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300 text-xs">
+              {actionError}
             </div>
           )}
+
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            {/* Status ASSIGNED: Instruções para envio de PR real */}
+            {bounty.status === 'ASSIGNED' && (
+              <div className="w-full p-4 rounded-xl bg-slate-950/50 border border-slate-800 text-xs text-slate-300 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2.5">
+                  <GitBranch className="w-4 h-4 text-[#28B110] shrink-0" />
+                  <span>
+                    Desenvolvedor atribuído à issue. Para concluir o trabalho, envie um Pull Request no repositório vinculando a issue correspondente.
+                  </span>
+                </div>
+                {bounty.issue?.url && (
+                  <a
+                    href={bounty.issue.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#145907] hover:bg-[#0e4104] text-[#D9EED6] text-xs font-semibold shrink-0 transition-colors"
+                  >
+                    <span>Ver Issue</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Status PR_OPEN: Informação de webhook */}
+            {bounty.status === 'PR_OPEN' && (
+              <div className="w-full p-4 rounded-xl bg-slate-950/50 border border-slate-800 text-xs text-slate-300 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2.5">
+                  <GitPullRequest className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    Pull Request aberto e em análise. A validação e liberação de fundos ocorrerão automaticamente via webhook do GitHub após o merge pelo mantenedor.
+                  </span>
+                </div>
+                {bounty.pr?.url && (
+                  <a
+                    href={bounty.pr.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold shrink-0 transition-colors"
+                  >
+                    <span>Ver PR no GitHub</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Status CLAIMABLE: Botão real de Claim */}
+            {bounty.status === 'CLAIMABLE' && (
+              <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-[#145907]/20 border border-[#28B110]/40">
+                <div>
+                  <h4 className="text-sm font-bold text-white">
+                    Recompensa Aprovada e Pronta para Resgate!
+                  </h4>
+                  <p className="text-xs text-[#D9EED6]/80 mt-0.5">
+                    O Pull Request foi aprovado e o valor está liberado para claim na sua carteira.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsClaimModalOpen(true)}
+                  className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-xl shadow-emerald-500/20 hover:scale-105 transition-all cursor-pointer shrink-0 animate-pulse"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  <span>CLAIM ${bounty.usdc_amount} USDC</span>
+                </button>
+              </div>
+            )}
+
+            {/* Status CLAIMED: Confirmação e link explorer */}
+            {bounty.status === 'CLAIMED' && bounty.claim && (
+              <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-[#145907]/20 border border-[#28B110]/40">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-6 h-6 text-[#28B110] shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-bold text-white">
+                      Recompensa Liquidada na Solana!
+                    </h4>
+                    <span className="text-xs text-[#D9EED6]/80 font-mono">
+                      Assinatura: {bounty.claim.transaction_signature.slice(0, 24)}...
+                    </span>
+                  </div>
+                </div>
+
+                <a
+                  href={solanaService.getExplorerUrl(bounty.claim.transaction_signature)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-lg bg-[#145907] hover:bg-[#0e4104] text-[#D9EED6] border border-[#28B110]/40 text-xs font-semibold flex items-center gap-2 transition-colors shrink-0"
+                >
+                  <span>Ver no Solana Explorer</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal de Claim */}
       {isClaimModalOpen && (

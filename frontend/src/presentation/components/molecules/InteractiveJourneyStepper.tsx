@@ -138,7 +138,7 @@ export const InteractiveJourneyStepper: React.FC = () => {
           {isAutoPlaying ? (
             <>
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Pausar Demonstração</span>
+              <span>Pausar Reprodução</span>
             </>
           ) : (
             <>

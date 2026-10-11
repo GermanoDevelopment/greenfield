@@ -8,8 +8,8 @@ import React, {
   type ReactNode,
 } from 'react';
 import type { Bounty, Claim, Repository, Treasury, User } from '../../core/domain/types';
-import { HybridBountyRepository } from '../../infrastructure/repositories/HybridBountyRepository';
-import { LocalStorageTreasuryRepository } from '../../infrastructure/repositories/LocalStorageTreasuryRepository';
+import { HttpBountyRepository } from '../../infrastructure/repositories/HttpBountyRepository';
+import { HttpTreasuryRepository } from '../../infrastructure/repositories/HttpTreasuryRepository';
 import { UserRepository, GUEST_USER } from '../../infrastructure/repositories/UserRepository';
 import { GitHubService } from '../../infrastructure/services/GitHubService';
 import { SolanaService } from '../../infrastructure/solana/solanaService';
@@ -25,6 +25,7 @@ interface AppContextType {
   treasury: Treasury | null;
   loading: boolean;
   isBackendConnected: boolean;
+  backendError: string | null;
   isAuthenticated: boolean;
   authInitialized: boolean;
   isLoginModalOpen: boolean;
@@ -37,7 +38,6 @@ interface AppContextType {
   gitHubService: GitHubService;
   solanaService: SolanaService;
   refreshData: () => Promise<void>;
-  resetToDefaults: () => Promise<void>;
   toggleRepositoryApproval: (repoId: string, approved: boolean) => Promise<Repository>;
   createBounty: (params: {
     issueId: string;
@@ -69,8 +69,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const bountyRepo = useMemo(() => new HybridBountyRepository(), []);
-  const treasuryRepo = useMemo(() => new LocalStorageTreasuryRepository(), []);
+  const bountyRepo = useMemo(() => new HttpBountyRepository(), []);
+  const treasuryRepo = useMemo(() => new HttpTreasuryRepository(), []);
   const userRepo = useMemo(() => new UserRepository(), []);
   const gitHubService = useMemo(() => new GitHubService(), []);
   const solanaService = useMemo(() => new SolanaService(), []);
@@ -105,6 +105,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [treasury, setTreasury] = useState<Treasury | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
+  const [backendError, setBackendError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
       return !!localStorage.getItem('greenfield_jwt');
@@ -130,6 +131,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const connected = await bountyRepo.checkConnectivity();
       setIsBackendConnected(connected);
 
+      if (!connected) {
+        setBackendError('Servidor backend offline. Não foi possível conectar à API.');
+        setBounties([]);
+        setTreasury(null);
+        setAvailableUsers([]);
+        setRepositories([]);
+        return;
+      }
+
+      setBackendError(null);
       const [allBounties, currTreasury, users, repos] = await Promise.all([
         bountyRepo.getAll(),
         treasuryRepo.getTreasury(),
@@ -140,18 +151,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTreasury(currTreasury);
 
       let mergedUsers = users;
-      if (connected) {
-        try {
-          const apiUsers = await greenfieldApi.listUsers();
-          if (apiUsers && apiUsers.length > 0) {
-            mergedUsers = apiUsers.map(apiUserToUser);
-          }
-        } catch {
-          // Mantém users locais em caso de falha de listagem
+      try {
+        const apiUsers = await greenfieldApi.listUsers();
+        if (apiUsers && apiUsers.length > 0) {
+          mergedUsers = apiUsers.map(apiUserToUser);
         }
+      } catch {
+        // Mantém users locais em caso de falha de listagem
       }
       setAvailableUsers(mergedUsers);
       setRepositories(repos);
+    } catch (err: any) {
+      setIsBackendConnected(false);
+      setBackendError(err?.message || 'Erro ao carregar dados do servidor backend.');
+      setBounties([]);
+      setTreasury(null);
     } finally {
       setLoading(false);
     }
@@ -230,16 +244,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     },
     [userRepo]
   );
-
-  const resetToDefaults = useCallback(async () => {
-    bountyRepo.reset();
-    await treasuryRepo.resetToDefault();
-    if (!isAuthenticated) {
-      userRepo.setCurrentUser(GUEST_USER);
-      setCurrentUserState(GUEST_USER);
-    }
-    await refreshData();
-  }, [bountyRepo, treasuryRepo, userRepo, refreshData, isAuthenticated]);
 
   const toggleRepositoryApproval = useCallback(
     async (repoId: string, approved: boolean) => {
@@ -365,6 +369,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         treasury,
         loading,
         isBackendConnected,
+        backendError,
         isAuthenticated,
         authInitialized,
         isLoginModalOpen,
@@ -377,7 +382,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         gitHubService,
         solanaService,
         refreshData,
-        resetToDefaults,
         toggleRepositoryApproval,
         createBounty,
         submitProposal,

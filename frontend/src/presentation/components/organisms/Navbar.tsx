@@ -1,13 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw, GitPullRequest, ExternalLink } from 'lucide-react';
+import { GitPullRequest, ExternalLink } from 'lucide-react';
 import RoleSwitcher from '../molecules/RoleSwitcher';
 import { WalletButton } from '../../../components/WalletButton';
 import { useApp } from '../../context/AppContext';
 import { getChainDisplayLabel } from '../../../client';
 
 export const Navbar: React.FC = () => {
-  const { resetToDefaults, isBackendConnected } = useApp();
+  const { isBackendConnected } = useApp();
   const chainLabel = getChainDisplayLabel();
 
   return (
@@ -50,37 +50,27 @@ export const Navbar: React.FC = () => {
               className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[11px] font-mono font-medium shrink-0 whitespace-nowrap shadow-xs ${
                 isBackendConnected
                   ? 'bg-[#182017] border-[#283426] text-[#28B110]'
-                  : 'bg-[#1e1c18] border-[#383020] text-amber-400'
+                  : 'bg-rose-950/40 border-rose-800/60 text-rose-400'
               }`}
               title={
                 isBackendConnected
                   ? 'Conectado à API FastAPI (PostgreSQL)'
-                  : 'Operando em Modo Demo Local (LocalStorage)'
+                  : 'Backend Offline / Inacessível'
               }
             >
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  isBackendConnected ? 'bg-[#28B110]' : 'bg-amber-400'
+                  isBackendConnected ? 'bg-[#28B110]' : 'bg-rose-500'
                 }`}
               />
-              <span>{isBackendConnected ? 'API Live' : 'Demo Mode'}</span>
+              <span>{isBackendConnected ? 'API Live' : 'API Offline'}</span>
             </div>
           </div>
 
-          {/* Área Direita: RoleSwitcher unificado + Carteira Solana + Reset Demo */}
+          {/* Área Direita: RoleSwitcher unificado + Carteira Solana */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             <RoleSwitcher />
             <WalletButton />
-
-            <button
-              onClick={() => resetToDefaults()}
-              className="p-2 rounded-xl text-[#889887] hover:text-[#28B110] hover:bg-[#182017] border border-transparent hover:border-[#283426] transition-all hidden xl:flex items-center justify-center shrink-0 cursor-pointer"
-              title="Restaurar dados iniciais do MVP"
-              aria-label="Restaurar dados iniciais do MVP"
-              type="button"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
