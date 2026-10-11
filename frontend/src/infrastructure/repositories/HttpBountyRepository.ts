@@ -97,6 +97,7 @@ function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
       : undefined,
     proposals,
     github_issue_assigned: Boolean(api.hunter_id),
+    escrow_pda: api.escrow_pda || undefined,
   };
 }
 
@@ -130,6 +131,7 @@ export class HttpBountyRepository implements IBountyRepository {
       issue_number: issueNum,
       issue_title: bountyData.issue?.title,
       issue_body: bountyData.issue?.description,
+      escrow_pda: bountyData.escrow_pda,
     });
 
     return mapApiBountyToDomain(created);
