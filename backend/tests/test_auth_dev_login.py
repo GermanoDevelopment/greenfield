@@ -1,5 +1,6 @@
 """Dev-only login shortcut, enabled only by an explicit ENABLE_DEV_LOGIN=true."""
 
+import os
 import subprocess
 import sys
 
@@ -76,7 +77,7 @@ def test_dev_github_id_is_stable_across_processes():
             capture_output=True,
             text=True,
             check=True,
-            env={"PYTHONHASHSEED": seed, "PATH": ""},
+            env={**os.environ, "PYTHONHASHSEED": seed},
         ).stdout.strip()
         for seed in ("1", "2", "3")
     }
