@@ -39,6 +39,35 @@ try {
   // Ignora
 }
 
+// Interceptor Global para 401 Unauthorized
+type UnauthorizedHandler = (message: string) => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function onUnauthorized(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler;
+}
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      const url = error.config?.url || '';
+      // Evita interceptar tentativas intencionais de login ou registro com credenciais inválidas
+      const isAuthAttempt = url.includes('/auth/login') || url.includes('/auth/register');
+      if (!isAuthAttempt) {
+        setAuthToken(null);
+        if (unauthorizedHandler) {
+          const detail =
+            error.response?.data?.detail ||
+            'Sua sessão expirou. Por favor, faça login novamente para continuar.';
+          unauthorizedHandler(typeof detail === 'string' ? detail : 'Sua sessão expirou.');
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Interfaces dos DTOs do Backend FastAPI
 export interface HealthOut {
   status: string;

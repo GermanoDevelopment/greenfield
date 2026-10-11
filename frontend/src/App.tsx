@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WalletContextProvider } from './components/WalletContextProvider';
+import { ToastProvider } from './presentation/context/ToastContext';
 import { AppProvider } from './presentation/context/AppContext';
 import AppLayout from './presentation/components/templates/AppLayout';
 
@@ -35,8 +36,9 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WalletContextProvider>
-        <AppProvider>
-          <Router>
+        <ToastProvider>
+          <AppProvider>
+            <Router>
             <AppLayout>
               <Routes>
                 {/* 1. Rota Pública: Landing Page */}
@@ -169,8 +171,9 @@ export function App() {
             </AppLayout>
           </Router>
         </AppProvider>
-      </WalletContextProvider>
-    </QueryClientProvider>
+      </ToastProvider>
+    </WalletContextProvider>
+  </QueryClientProvider>
   );
 }
 
