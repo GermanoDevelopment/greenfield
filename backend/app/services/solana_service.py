@@ -115,23 +115,31 @@ async def verify_escrow_funded(escrow_pda: str, expected_amount_usdc: float) -> 
     return balance >= expected_amount_usdc
 
 
-def get_treasury_keypair():
-    """Load or generate the Greenfield community treasury keypair using Solinpy / Solders."""
+def is_custodial_enabled(settings: Settings | None = None) -> bool:
+    settings = settings or get_settings()
+    return bool(
+        settings.solana_authority_secret_key
+        or settings.solana_treasury_keypair_path
+        or settings.solana_treasury_private_key
+    )
+
+
+def get_treasury_keypair() -> Keypair:
+    """Load the Greenfield treasury keypair. Never generates one: paying from an
+    empty random key would only ever fail."""
     settings = get_settings()
-    if settings.solana_authority_secret_key:
-        try:
+    try:
+        if settings.solana_authority_secret_key:
             return get_authority_keypair(settings)
-        except Exception:
-            pass
-    if settings.solana_treasury_keypair_path:
-        return WalletManager.import_from_json(settings.solana_treasury_keypair_path)
-    if settings.solana_treasury_private_key:
-        try:
-            raw = base58.b58decode(settings.solana_treasury_private_key)
-            return Keypair.from_bytes(raw)
-        except Exception:
-            pass
-    return WalletManager.generate_keypair()
+        if settings.solana_treasury_keypair_path:
+            return WalletManager.import_from_json(settings.solana_treasury_keypair_path)
+        if settings.solana_treasury_private_key:
+            return Keypair.from_bytes(base58.b58decode(settings.solana_treasury_private_key))
+    except SolanaServiceError:
+        raise
+    except Exception as e:
+        raise SolanaServiceError(f"Invalid treasury key configuration: {e}") from e
+    raise SolanaNotConfiguredError("No treasury key configured for custodial payouts")
 
 
 async def execute_bounty_payout(
@@ -140,6 +148,9 @@ async def execute_bounty_payout(
     mint: str | None = None,
 ) -> str:
     """Execute SPL USDC payout to contributor directly (custodial fallback).
+
+    Returns the signature only once the transaction is confirmed; raises
+    SolanaServiceError otherwise.
 
     Builds and sends the transfer by hand instead of calling Solinpy's
     `send_token_transfer`: that helper hands a `solders.Transaction` straight to
@@ -202,9 +213,13 @@ async def execute_bounty_payout(
                 instructions, treasury_kp.pubkey(), [treasury_kp], blockhash
             )
             tx_base64 = base64.b64encode(bytes(tx)).decode("ascii")
-            return await client.send_transaction(tx_base64)
+            signature = await client.send_transaction(tx_base64)
         except SolinpyRPCError as e:
             raise SolanaServiceError(f"Solana payout failed: {e}") from e
+
+    # Only a confirmed transaction counts as paid.
+    await _confirm_signature(str(signature))
+    return str(signature)
 
 
 # ---------------------------------------------------------------------------

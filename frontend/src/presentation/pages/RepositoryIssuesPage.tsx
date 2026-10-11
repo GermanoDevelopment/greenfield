@@ -269,9 +269,22 @@ export const RepositoryIssuesPage: React.FC = () => {
                           <Clock className="w-3.5 h-3.5" /> Em Revisão PR
                         </span>
                       )}
-                      {status === 'COMPLETED' && (
+                      {status === 'CLAIMABLE' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-emerald-950/40 text-emerald-300 border border-emerald-500/40">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Mergeado, aguardando pagamento
+                        </span>
+                      )}
+                      {status === 'CLAIMED' && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-purple-950/40 text-purple-300 border border-purple-500/40">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Concluído & Pago
+                        </span>
+                      )}
+                      {status === 'CLAIM_FAILED' && (
+                        <span
+                          title={linkedBounty?.claim_error ?? undefined}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-red-950/40 text-red-300 border border-red-500/40"
+                        >
+                          <Clock className="w-3.5 h-3.5" /> Falha no pagamento
                         </span>
                       )}
                     </div>
@@ -374,7 +387,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                       </span>
                     )}
 
-                    {status === 'COMPLETED' && linkedBounty?.tx_signature && (
+                    {status === 'CLAIMED' && linkedBounty?.tx_signature && (
                       <a
                         href={`https://explorer.solana.com/tx/${linkedBounty.tx_signature}?cluster=devnet`}
                         target="_blank"

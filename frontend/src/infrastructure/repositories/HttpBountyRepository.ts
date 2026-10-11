@@ -23,14 +23,21 @@ function mapApiStatusToDomain(status: string): BountyStatus {
       return 'ASSIGNED';
     case 'SUBMITTED':
       return 'PR_OPEN';
-    case 'COMPLETED':
+    case 'CLAIMABLE':
+      return 'CLAIMABLE';
+    case 'CLAIMED':
       return 'CLAIMED';
+    case 'CLAIM_FAILED':
+      return 'CLAIM_FAILED';
     case 'CANCELLED':
       return 'CANCELLED';
     default:
       return 'OPEN_FOR_PROPOSALS';
   }
 }
+
+// Merge verified: the reward is unlocked whether or not it has been paid yet.
+const MERGED_STATUSES = new Set(['CLAIMABLE', 'CLAIMED', 'CLAIM_FAILED']);
 
 function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
   const usdcAmount = api.amount_usdc ? api.amount_usdc / 1_000_000 : api.points / 100;
@@ -58,7 +65,7 @@ function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
       title: api.issue_title || 'GitHub Issue',
       description: api.issue_body || undefined,
       url: api.issue_url,
-      status: api.status === 'COMPLETED' ? 'CLOSED' : 'OPEN',
+      status: MERGED_STATUSES.has(api.status) ? 'CLOSED' : 'OPEN',
     },
     repository_id: String(api.repository_id || api.project_id),
     maintainer_id: String(api.issuer_id),
@@ -79,7 +86,7 @@ function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
           title: `Fix #${api.issue_number || api.id}`,
           url: api.pr_url,
           author_github_username: api.hunter?.username || 'hunter',
-          merged: api.status === 'COMPLETED',
+          merged: MERGED_STATUSES.has(api.status),
           merged_at: api.claimed_at || undefined,
         }
       : undefined,

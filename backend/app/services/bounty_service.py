@@ -1,7 +1,8 @@
+import logging
 import re
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +17,8 @@ from app.db.base import (
 )
 from app.schemas.bounty import BOUNTY_TRANSITIONS, BountyStatus
 from app.services import github_service, solana_service
+
+logger = logging.getLogger("greenfield.bounty_service")
 
 
 async def get_bounty(session: AsyncSession, bounty_id: int) -> BountyModel:
@@ -394,11 +397,35 @@ async def submit_bounty(
     return bounty
 
 
+async def _reserve_completion(session: AsyncSession, bounty: BountyModel) -> None:
+    """Atomically move SUBMITTED -> CLAIMABLE so that only one caller completes a bounty.
+
+    The webhook and a manual complete can arrive together; both read SUBMITTED before
+    either commits, and without this the payout would run twice. The conditional UPDATE
+    lets exactly one of them through, and the other gets a 409.
+    """
+    result = await session.execute(
+        update(BountyModel)
+        .where(
+            BountyModel.id == bounty.id,
+            BountyModel.status == BountyStatus.SUBMITTED.value,
+        )
+        .values(status=BountyStatus.CLAIMABLE.value)
+    )
+    if result.rowcount != 1:
+        raise ConflictError("Bounty is already being completed")
+    await session.refresh(bounty, attribute_names=["status", "updated_at"])
+
+
 async def complete_bounty(
     session: AsyncSession, bounty: BountyModel, actor: UserModel
 ) -> BountyModel:
     if bounty.issuer_id != actor.id and actor.role != "ADMIN":
         raise ForbiddenError("Only the bounty issuer or an admin can complete it")
+    # Only from SUBMITTED: CLAIM_FAILED -> CLAIMABLE is a valid transition, but it
+    # belongs to the payout retry flow (#24), not to completing the bounty again.
+    if bounty.status != BountyStatus.SUBMITTED.value:
+        raise ConflictError(f"Cannot complete bounty with status {bounty.status}")
     if not bounty.pr_url:
         raise ConflictError("Bounty has no PR submitted")
 
@@ -411,32 +438,49 @@ async def complete_bounty(
     if not pr.get("merged"):
         raise ValidationError("Pull request is not merged yet")
 
-    _transition(bounty, BountyStatus.COMPLETED)
+    await _reserve_completion(session, bounty)
 
-    # Invariant 1: Approve claim on-chain unlocks developer's own claim transaction
     if solana_service.is_onchain_enabled():
+        # Escrow mode, Invariant 1: approve_claim unlocks the developer's own claim
+        # transaction; the bounty becomes CLAIMED when that claim is reported.
         await _run_onchain_or_rollback(
             session,
             lambda: solana_service.approve_claim_onchain(bounty.id),
         )
+        await session.commit()
     else:
-        # Execute on-chain payout via Solinpy if hunter has wallet registered (legacy/fallback mode)
-        if bounty.hunter_id:
-            hunter = await session.get(UserModel, bounty.hunter_id)
-            if hunter and hunter.wallet:
-                try:
-                    tx_sig = await solana_service.execute_bounty_payout(
-                        destination_wallet=hunter.wallet,
-                        amount_micro_usdc=bounty.amount_usdc,
-                    )
-                    bounty.tx_signature = tx_sig
-                    bounty.claimed_at = datetime.now(UTC)
-                except Exception:
-                    pass
+        # Custodial mode: record CLAIMABLE first, so the verified merge survives
+        # whatever happens to the payment, then try to pay.
+        await session.commit()
+        await _pay_custodial(session, bounty, hunter)
 
-    await session.commit()
     await session.refresh(bounty)
     return bounty
+
+
+async def _pay_custodial(session: AsyncSession, bounty: BountyModel, hunter: UserModel) -> None:
+    """Paga do tesouro e move CLAIMABLE -> CLAIMED, ou -> CLAIM_FAILED com o motivo.
+
+    Sem carteira do hunter ou sem tesouro configurado, nada é tentado e a bounty
+    fica CLAIMABLE.
+    """
+    if not hunter.wallet or not solana_service.is_custodial_enabled():
+        return
+    try:
+        tx_sig = await solana_service.execute_bounty_payout(
+            destination_wallet=hunter.wallet,
+            amount_micro_usdc=bounty.amount_usdc,
+        )
+    except Exception as e:
+        logger.exception("Custodial payout failed for bounty %s", bounty.id)
+        _transition(bounty, BountyStatus.CLAIM_FAILED)
+        bounty.claim_error = (str(e) or type(e).__name__)[:512]
+    else:
+        _transition(bounty, BountyStatus.CLAIMED)
+        bounty.tx_signature = tx_sig
+        bounty.claimed_at = datetime.now(UTC)
+        bounty.claim_error = None
+    await session.commit()
 
 
 async def cancel_bounty(
@@ -463,13 +507,16 @@ async def record_claim(
     if bounty.hunter_id != actor.id and actor.role != "ADMIN":
         raise ForbiddenError("Only the assigned developer or an admin can report a claim")
 
-    if solana_service.is_onchain_enabled():
-        try:
-            account = await solana_service.get_bounty_account(bounty.id)
-        except solana_service.SolanaServiceError as e:
-            raise ConflictError(f"Could not verify claim on-chain: {e}") from e
-        if account is None or account["status"] != solana_service.BOUNTY_STATUS_CLAIMED:
-            raise ValidationError("The claim transaction has not been confirmed on-chain yet")
+    # In custodial mode the platform pays and records the transaction itself;
+    # accepting a reported signature there would mark unverified payments as paid.
+    if not solana_service.is_onchain_enabled():
+        raise ConflictError("Claims are only reported in escrow mode")
+    try:
+        account = await solana_service.get_bounty_account(bounty.id)
+    except solana_service.SolanaServiceError as e:
+        raise ConflictError(f"Could not verify claim on-chain: {e}") from e
+    if account is None or account["status"] != solana_service.BOUNTY_STATUS_CLAIMED:
+        raise ValidationError("The claim transaction has not been confirmed on-chain yet")
 
     _transition(bounty, BountyStatus.CLAIMED)
     bounty.tx_signature = tx_signature
@@ -519,13 +566,7 @@ async def get_admin_stats(session: AsyncSession) -> dict:
     all_bounties = list(bounties_res.scalars().all())
 
     total_bounties = len(all_bounties)
-    bounties_by_status = {
-        BountyStatus.OPEN.value: 0,
-        BountyStatus.ASSIGNED.value: 0,
-        BountyStatus.SUBMITTED.value: 0,
-        BountyStatus.COMPLETED.value: 0,
-        BountyStatus.CANCELLED.value: 0,
-    }
+    bounties_by_status = {status.value: 0 for status in BountyStatus}
     total_allocated_micro = 0
     total_paid_micro = 0
 
@@ -534,7 +575,7 @@ async def get_admin_stats(session: AsyncSession) -> dict:
             bounties_by_status[b.status] += 1
         if b.status not in (BountyStatus.CANCELLED.value,):
             total_allocated_micro += b.amount_usdc
-        if b.status == BountyStatus.COMPLETED.value:
+        if b.status == BountyStatus.CLAIMED.value:
             total_paid_micro += b.amount_usdc
 
     return {

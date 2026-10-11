@@ -150,7 +150,7 @@ async def test_complete_rechecks_binding(
     mock_github_pr_merged["body"] = "Fixes GermanoDevelopment/greenfield#1"
     resp = await client.post(f"/api/v1/bounties/{assigned_bounty}/complete", headers=auth_headers)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "COMPLETED"
+    assert resp.json()["status"] == "CLAIMABLE"
 
 
 # --- Webhook ----------------------------------------------------------------
@@ -202,7 +202,7 @@ async def test_webhook_merge_completes_bounty(
     assert (await _submit(client, assigned_bounty, hunter_headers)).status_code == 200
     resp = await _send_merged(client, "delivery-1")
     assert resp.json()["detail"] == f"Bounty {assigned_bounty} completed"
-    assert await _status(session_factory, assigned_bounty) == "COMPLETED"
+    assert await _status(session_factory, assigned_bounty) == "CLAIMABLE"
 
 
 async def test_webhook_replayed_delivery_is_ignored(

@@ -10,7 +10,17 @@ class AdminStatsOut(BaseModel):
     bounties_by_status: dict[str, int] = Field(
         ...,
         description="Contagem de bounties por status",
-        examples=[{"OPEN": 5, "ASSIGNED": 2, "SUBMITTED": 1, "COMPLETED": 8, "CANCELLED": 0}],
+        examples=[
+            {
+                "OPEN": 5,
+                "ASSIGNED": 2,
+                "SUBMITTED": 1,
+                "CLAIMABLE": 3,
+                "CLAIMED": 5,
+                "CLAIM_FAILED": 0,
+                "CANCELLED": 0,
+            }
+        ],
     )
     total_usdc_allocated: float = Field(
         ..., description="Total de capital em USDC alocado no tesouro"

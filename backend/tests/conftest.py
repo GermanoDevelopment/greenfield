@@ -45,6 +45,14 @@ HUNTER_GITHUB_ID = 789
 
 
 @pytest.fixture
+def custodial(monkeypatch):
+    """Liga o modo custodial (tesouro configurado) sem tocar em chaves reais."""
+    from app.services import solana_service
+
+    monkeypatch.setattr(solana_service, "is_custodial_enabled", lambda settings=None: True)
+
+
+@pytest.fixture
 def mock_github_pr_merged(monkeypatch):
     """GitHub fake para `fetch_pull_request`.
 

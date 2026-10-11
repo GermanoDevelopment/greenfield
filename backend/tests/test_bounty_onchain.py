@@ -217,7 +217,7 @@ async def test_complete_bounty_calls_approve_claim_onchain(
 
     resp = await client.post(f"/api/v1/bounties/{bounty_id}/complete", headers=issuer_headers)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "COMPLETED"
+    assert resp.json()["status"] == "CLAIMABLE"
 
     onchain_names = [name for name, _ in mock_onchain_calls]
     assert "assign_developer_onchain" in onchain_names

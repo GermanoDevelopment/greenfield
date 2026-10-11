@@ -90,7 +90,7 @@ async def test_non_owner_non_admin_cannot_update_reward(
 
 
 async def test_solinpy_payout_on_complete(
-    client, auth_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged
+    client, auth_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged, custodial
 ):
     bounty_id = open_bounty_fixture["id"]
     mock_github_pr_merged["body"] = "Closes #10"
@@ -117,7 +117,7 @@ async def test_solinpy_payout_on_complete(
         )
         assert complete_resp.status_code == 200
         data = complete_resp.json()
-        assert data["status"] == "COMPLETED"
+        assert data["status"] == "CLAIMED"
         assert data["tx_signature"] == "tx_sig_test_solinpy_abc123"
         assert data["claimed_at"] is not None
 
@@ -139,7 +139,7 @@ async def test_admin_stats_and_permissions(client, admin_headers, hunter_headers
 
 
 async def test_admin_review_submission_reject_and_approve(
-    client, admin_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged
+    client, admin_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged, custodial
 ):
     bounty_id = open_bounty_fixture["id"]
     mock_github_pr_merged["body"] = "Closes #10"
@@ -202,5 +202,5 @@ async def test_admin_review_submission_reject_and_approve(
         )
         assert approve_resp.status_code == 200
         approved_data = approve_resp.json()
-        assert approved_data["status"] == "COMPLETED"
+        assert approved_data["status"] == "CLAIMED"
         assert approved_data["tx_signature"] == "tx_sig_admin_approved_123"

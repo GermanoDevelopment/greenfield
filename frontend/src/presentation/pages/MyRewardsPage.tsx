@@ -21,7 +21,7 @@ export const MyRewardsPage: React.FC = () => {
     async function loadRewards() {
       setLoading(true);
       try {
-        const allBounties = await greenfieldApi.listBounties({ status: 'COMPLETED' });
+        const allBounties = await greenfieldApi.listBounties({ status: 'CLAIMED' });
         // Filtra pelo hunter conectado
         const myCompleted = allBounties.filter(
           (b) =>
