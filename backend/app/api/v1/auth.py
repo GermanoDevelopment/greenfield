@@ -15,7 +15,13 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.rate_limit import auth_rate_limit, login_lockout
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    generate_oauth_state,
+    hash_password,
+    verify_oauth_state,
+    verify_password,
+)
 from app.db.base import UserModel
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserOut
@@ -132,7 +138,9 @@ async def auth_config() -> AuthConfigOut:
 async def github_login(
     state: str | None = Query(None, description="Estado de segurança CSRF opcional"),
 ) -> RedirectResponse:
-    """Redireciona o navegador do usuário para a página de autorização OAuth do GitHub."""
+    """Redireciona para autorização OAuth do GitHub com state CSRF."""
+    if not state:
+        state = generate_oauth_state()
     login_url = await github_service.build_login_url(state)
     return RedirectResponse(login_url)
 
@@ -170,19 +178,26 @@ async def github_callback(
     request: Request,
     db: DbSession,
     code: str | None = Query(None, description="Código temporário fornecido pelo GitHub OAuth"),
+    state: str | None = Query(None, description="Estado de segurança CSRF retornado pelo GitHub"),
     error: str | None = Query(None, description="Mensagem de erro enviada pelo GitHub caso negado"),
 ):
-    """Processa autorização do GitHub OAuth e retorna o token JWT."""
+    """Processa OAuth do GitHub, valida CSRF state e redireciona ao SPA."""
     settings = get_settings()
     frontend_callback = f"{settings.frontend_url.rstrip('/')}/auth/callback"
+    is_json = "application/json" in request.headers.get("accept", "")
 
     if error:
-        if "application/json" in request.headers.get("accept", ""):
+        if is_json:
             raise ValidationError(f"GitHub OAuth error: {error}")
         return RedirectResponse(f"{frontend_callback}?error={error}")
 
+    if not verify_oauth_state(state):
+        if is_json:
+            raise ValidationError("Missing or invalid 'state' CSRF parameter")
+        return RedirectResponse(f"{frontend_callback}?error=invalid_state")
+
     if not code:
-        if "application/json" in request.headers.get("accept", ""):
+        if is_json:
             raise ValidationError("Missing 'code' query parameter")
         return RedirectResponse(f"{frontend_callback}?error=missing_code")
 
@@ -190,14 +205,14 @@ async def github_callback(
         access_token = await github_service.exchange_code_for_token(code)
         gh_user = await github_service.get_authenticated_user(access_token)
     except GitHubServiceError as e:
-        if "application/json" in request.headers.get("accept", ""):
+        if is_json:
             raise ValidationError(str(e)) from e
         return RedirectResponse(f"{frontend_callback}?error={e}")
 
     user = await _upsert_github_user(db, gh_user)
     token = create_access_token(user.id, user.username)
 
-    if "application/json" in request.headers.get("accept", ""):
+    if is_json:
         return TokenResponse(access_token=token, user=UserOut.model_validate(user))
     return RedirectResponse(f"{frontend_callback}?token={token}")
 
