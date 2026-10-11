@@ -14,7 +14,7 @@ import { UserRepository, GUEST_USER } from '../../infrastructure/repositories/Us
 import { GitHubService } from '../../infrastructure/services/GitHubService';
 import { SolanaService } from '../../infrastructure/solana/solanaService';
 import { BountyUseCases } from '../../core/usecases/bountyUseCases';
-import { greenfieldApi, type ApiUserOut, setAuthToken } from '../../services/api';
+import { greenfieldApi, type ApiUserOut, setAuthToken, onUnauthorized } from '../../services/api';
 
 interface AppContextType {
   currentUser: User;
@@ -28,6 +28,8 @@ interface AppContextType {
   isAuthenticated: boolean;
   authInitialized: boolean;
   isLoginModalOpen: boolean;
+  authMessage: string | null;
+  setAuthMessage: (msg: string | null) => void;
   openLoginModal: () => void;
   closeLoginModal: () => void;
   login: (email: string, password: string) => Promise<User>;
@@ -120,9 +122,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
 
   const openLoginModal = useCallback(() => setIsLoginModalOpen(true), []);
-  const closeLoginModal = useCallback(() => setIsLoginModalOpen(false), []);
+  const closeLoginModal = useCallback(() => {
+    setIsLoginModalOpen(false);
+    setAuthMessage(null);
+  }, []);
 
   const refreshData = useCallback(async () => {
     setLoading(true);
@@ -189,6 +195,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     userRepo.setCurrentUser(GUEST_USER);
     setCurrentUserState(GUEST_USER);
   }, [userRepo]);
+
+  // Hook global do interceptor 401: limpa sessão e exibe login modal com mensagem
+  useEffect(() => {
+    onUnauthorized((msg) => {
+      logout();
+      setAuthMessage(msg);
+      openLoginModal();
+    });
+    return () => {
+      onUnauthorized(null);
+    };
+  }, [logout, openLoginModal]);
 
   // Checa token existente na inicialização
   useEffect(() => {
@@ -368,6 +386,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isAuthenticated,
         authInitialized,
         isLoginModalOpen,
+        authMessage,
+        setAuthMessage,
         openLoginModal,
         closeLoginModal,
         login,
