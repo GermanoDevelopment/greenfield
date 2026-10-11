@@ -84,7 +84,9 @@ async def _handle_event(db: AsyncSession, event_name: str | None, event: dict) -
             result = await db.execute(
                 select(BountyModel).where(
                     BountyModel.pr_url == pr_url,
-                    BountyModel.status == BountyStatus.SUBMITTED.value,
+                    BountyModel.status.in_(
+                        [BountyStatus.SUBMITTED.value, BountyStatus.CLAIM_FAILED.value]
+                    ),
                 )
             )
             bounty = result.scalar_one_or_none()

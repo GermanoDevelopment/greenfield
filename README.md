@@ -11,7 +11,10 @@ flowchart LR
     C --> D[Maintainer accepts<br/>reward frozen]
     D --> E[PR submitted]
     E --> F{PR merged?}
-    F -- "yes" --> G[USDC paid<br/>on Solana]
+    F -- "yes" --> G[CLAIMABLE]
+    G --> H{Claim / Payout}
+    H -- "confirmed" --> I[CLAIMED<br/>USDC on Solana]
+    H -- "error" --> J[CLAIM_FAILED<br/>with reason]
     F -- "no" --> E
 ```
 
@@ -118,25 +121,25 @@ Limits are kept in memory per process, so each worker or replica counts separate
 
 ## How it works
 
-A bounty moves `OPEN → ASSIGNED → SUBMITTED → COMPLETED`. It can be `CANCELLED` from any non-final state, and a rejected PR sends it back from `SUBMITTED` to `ASSIGNED`. `COMPLETED` and `CANCELLED` are final.
+A bounty moves `OPEN → ASSIGNED → SUBMITTED → CLAIMABLE → CLAIMED`. It can be `CANCELLED` from `OPEN`, `ASSIGNED`, or `SUBMITTED`, and a rejected PR sends it back from `SUBMITTED` to `ASSIGNED`. Once a PR is verified merged, the bounty moves to `CLAIMABLE` (separating reward validation from on-chain transaction execution, per PRD 19.5). When the contributor executes their claim on-chain or a payout is confirmed, it moves to `CLAIMED`. If an on-chain approval or payment transaction fails, it transitions to `CLAIM_FAILED` with the exact error stored in `failure_reason`, allowing retries without losing claim rights. `CLAIMED` and `CANCELLED` are terminal states. (`COMPLETED` is retained for backwards compatibility with legacy rows).
 
-It completes when the GitHub webhook reports a merged PR, or when the issuer or an admin calls `POST /bounties/{id}/complete`. Either way the backend verifies the merge first.
+It completes (becomes `CLAIMABLE`) when the GitHub webhook reports a merged PR, or when the issuer or an admin calls `POST /bounties/{id}/complete`. Either way the backend verifies the merge first.
 
 Rules:
 
 - **Merge required.** If the backend cannot verify the merge, the bounty does not complete.
 - **PR bound to the bounty.** On submit and again on merge, the PR must target the issue's repository, be authored by the assigned hunter (matched by GitHub account id, so the hunter needs a linked GitHub account) and reference the issue in its title or body (`#N`, `owner/repo#N` or the issue URL). A PR closed without merge is refused, and one PR can back only one bounty.
 - **Frozen reward.** The reward can only change while `OPEN`.
-- **One payout per issue.** `complete` is only valid from `SUBMITTED`.
+- **One payout per issue.** `complete` is only valid from `SUBMITTED` (or `CLAIM_FAILED` retry).
 - **Fixed conversion.** `100 points = $1 USDC = 1,000,000 micro-USDC`.
 
 ### Payouts
 
 The mode depends on configuration.
 
-**On-chain escrow.** Active when both `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY` are set. The Anchor program holds the funds, and the backend runs each step as the bounty advances: create, assign (when the accepted contributor has a wallet), approve on merge, cancel. The contributor then signs `claim` from their wallet in the app. If an on-chain step fails, the database change is rolled back and the API returns an error.
+**On-chain escrow.** Active when both `SOLANA_PROGRAM_ID` and `SOLANA_AUTHORITY_SECRET_KEY` are set. The Anchor program holds the funds, and the backend runs each step as the bounty advances: create, assign (when the accepted contributor has a wallet), approve on merge, cancel. Once approved on merge, the bounty moves to `CLAIMABLE`, and the contributor signs `claim` from their wallet in the app to transition to `CLAIMED`. If an on-chain step fails, the error surfaces as `CLAIM_FAILED` with the reason recorded.
 
-**Custodial fallback.** The default when either variable is missing. On merge the backend sends SPL USDC from a treasury key straight to the contributor's wallet. The key comes from `SOLANA_AUTHORITY_SECRET_KEY`, else `SOLANA_TREASURY_KEYPAIR_PATH`, else `SOLANA_TREASURY_PRIVATE_KEY`; with none of them, the backend uses an ephemeral keypair with no funds. If the contributor has no linked wallet, or the transfer fails, the bounty still completes with no `tx_signature` and no error is reported.
+**Custodial fallback.** The default when either variable is missing. On merge the backend sends SPL USDC from a treasury key straight to the contributor's wallet. The key comes from `SOLANA_AUTHORITY_SECRET_KEY`, else `SOLANA_TREASURY_KEYPAIR_PATH`, else `SOLANA_TREASURY_PRIVATE_KEY`; with none of them, the backend uses an ephemeral keypair with no funds. If the contributor has no linked wallet yet, the bounty stays `CLAIMABLE` awaiting wallet connection. If the transfer fails, the error is not swallowed: the bounty moves to `CLAIM_FAILED` with the failure details recorded in `failure_reason`.
 
 ## Commands
 
@@ -195,7 +198,7 @@ greenfield/
 - **Frontend shows `Failed to fetch` or a CORS error:** check `VITE_API_URL` and that `curl localhost:8080/api/v1/health` works.
 - **`VITE_*` change has no effect:** restart `npm run dev`. In Docker, rebuild with `--build`.
 - **`/auth/github/login` fails:** the GitHub OAuth variables are empty. Use email and password in development.
-- **Bounty completed with no `tx_signature` (custodial mode):** the contributor has no wallet linked (`PATCH /users/me`), or the transfer failed silently. See [Payouts](#payouts).
+- **Bounty in `CLAIM_FAILED`:** an on-chain approval or payment transfer failed. Inspect `failure_reason` on the bounty for the specific error, ensure the treasury key or escrow holds sufficient USDC balance, and retry the approval or claim transaction.
 - **`On-chain transaction failed` (escrow mode):** the Solana step was rejected, so the change was rolled back. Check `SOLANA_PROGRAM_ID`, the authority key balance and `SOLANA_RPC_URL`.
 - **Webhook returns `403 Invalid signature`:** `GITHUB_WEBHOOK_SECRET` is empty, or the secret in GitHub differs from it.
 

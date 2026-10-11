@@ -411,16 +411,18 @@ async def complete_bounty(
     if not pr.get("merged"):
         raise ValidationError("Pull request is not merged yet")
 
-    _transition(bounty, BountyStatus.COMPLETED)
+    _transition(bounty, BountyStatus.CLAIMABLE)
+    bounty.failure_reason = None
 
     # Invariant 1: Approve claim on-chain unlocks developer's own claim transaction
     if solana_service.is_onchain_enabled():
-        await _run_onchain_or_rollback(
-            session,
-            lambda: solana_service.approve_claim_onchain(bounty.id),
-        )
+        try:
+            await solana_service.approve_claim_onchain(bounty.id)
+        except (solana_service.SolanaServiceError, Exception) as e:
+            bounty.status = BountyStatus.CLAIM_FAILED.value
+            bounty.failure_reason = f"On-chain approval failed: {e}"
     else:
-        # Execute on-chain payout via Solinpy if hunter has wallet registered (legacy/fallback mode)
+        # Custodial/direct payout fallback mode if hunter already has wallet registered
         if bounty.hunter_id:
             hunter = await session.get(UserModel, bounty.hunter_id)
             if hunter and hunter.wallet:
@@ -431,8 +433,11 @@ async def complete_bounty(
                     )
                     bounty.tx_signature = tx_sig
                     bounty.claimed_at = datetime.now(UTC)
-                except Exception:
-                    pass
+                    _transition(bounty, BountyStatus.CLAIMED)
+                    bounty.failure_reason = None
+                except Exception as e:
+                    bounty.status = BountyStatus.CLAIM_FAILED.value
+                    bounty.failure_reason = f"Payout failed: {e}"
 
     await session.commit()
     await session.refresh(bounty)
@@ -467,13 +472,22 @@ async def record_claim(
         try:
             account = await solana_service.get_bounty_account(bounty.id)
         except solana_service.SolanaServiceError as e:
+            bounty.status = BountyStatus.CLAIM_FAILED.value
+            bounty.failure_reason = f"Could not verify claim on-chain: {e}"
+            await session.commit()
+            await session.refresh(bounty)
             raise ConflictError(f"Could not verify claim on-chain: {e}") from e
         if account is None or account["status"] != solana_service.BOUNTY_STATUS_CLAIMED:
+            bounty.status = BountyStatus.CLAIM_FAILED.value
+            bounty.failure_reason = "The claim transaction has not been confirmed on-chain yet"
+            await session.commit()
+            await session.refresh(bounty)
             raise ValidationError("The claim transaction has not been confirmed on-chain yet")
 
     _transition(bounty, BountyStatus.CLAIMED)
     bounty.tx_signature = tx_signature
     bounty.claimed_at = datetime.now(UTC)
+    bounty.failure_reason = None
     await session.commit()
     await session.refresh(bounty)
     return bounty
@@ -484,11 +498,12 @@ async def reject_bounty_submission(
 ) -> BountyModel:
     if bounty.issuer_id != actor.id and actor.role != "ADMIN":
         raise ForbiddenError("Only the bounty issuer or an admin can reject a submission")
-    if bounty.status != BountyStatus.SUBMITTED.value:
+    if bounty.status not in (BountyStatus.SUBMITTED.value, BountyStatus.CLAIM_FAILED.value):
         raise ConflictError(f"Cannot reject submission for bounty with status {bounty.status}")
 
     _transition(bounty, BountyStatus.ASSIGNED)
     bounty.pr_url = None
+    bounty.failure_reason = reason
     await session.commit()
     await session.refresh(bounty)
     return bounty
@@ -523,6 +538,9 @@ async def get_admin_stats(session: AsyncSession) -> dict:
         BountyStatus.OPEN.value: 0,
         BountyStatus.ASSIGNED.value: 0,
         BountyStatus.SUBMITTED.value: 0,
+        BountyStatus.CLAIMABLE.value: 0,
+        BountyStatus.CLAIMED.value: 0,
+        BountyStatus.CLAIM_FAILED.value: 0,
         BountyStatus.COMPLETED.value: 0,
         BountyStatus.CANCELLED.value: 0,
     }
@@ -534,7 +552,7 @@ async def get_admin_stats(session: AsyncSession) -> dict:
             bounties_by_status[b.status] += 1
         if b.status not in (BountyStatus.CANCELLED.value,):
             total_allocated_micro += b.amount_usdc
-        if b.status == BountyStatus.COMPLETED.value:
+        if b.status in (BountyStatus.CLAIMED.value, BountyStatus.COMPLETED.value):
             total_paid_micro += b.amount_usdc
 
     return {
@@ -546,6 +564,8 @@ async def get_admin_stats(session: AsyncSession) -> dict:
         "total_usdc_paid": round(total_paid_micro / 1_000_000, 2),
         "total_users": total_users,
         "pending_submissions": bounties_by_status[BountyStatus.SUBMITTED.value],
+        "claimable_bounties": bounties_by_status[BountyStatus.CLAIMABLE.value],
+        "claimed_bounties": bounties_by_status[BountyStatus.CLAIMED.value],
         "unrewarded_issues": unrewarded_issues,
         "total_tracked_issues": total_tracked_issues,
     }

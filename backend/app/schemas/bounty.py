@@ -10,8 +10,10 @@ class BountyStatus(StrEnum):
     OPEN = "OPEN"
     ASSIGNED = "ASSIGNED"
     SUBMITTED = "SUBMITTED"
-    COMPLETED = "COMPLETED"
+    CLAIMABLE = "CLAIMABLE"
     CLAIMED = "CLAIMED"
+    CLAIM_FAILED = "CLAIM_FAILED"
+    COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
 
 
@@ -19,8 +21,24 @@ class BountyStatus(StrEnum):
 BOUNTY_TRANSITIONS: dict[BountyStatus, set[BountyStatus]] = {
     BountyStatus.OPEN: {BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
     BountyStatus.ASSIGNED: {BountyStatus.SUBMITTED, BountyStatus.CANCELLED},
-    BountyStatus.SUBMITTED: {BountyStatus.COMPLETED, BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
-    BountyStatus.COMPLETED: {BountyStatus.CLAIMED},
+    BountyStatus.SUBMITTED: {
+        BountyStatus.CLAIMABLE,
+        BountyStatus.CLAIM_FAILED,
+        BountyStatus.COMPLETED,
+        BountyStatus.ASSIGNED,
+        BountyStatus.CANCELLED,
+    },
+    BountyStatus.CLAIMABLE: {
+        BountyStatus.CLAIMED,
+        BountyStatus.CLAIM_FAILED,
+    },
+    BountyStatus.CLAIM_FAILED: {
+        BountyStatus.CLAIMABLE,
+        BountyStatus.CLAIMED,
+        BountyStatus.ASSIGNED,
+        BountyStatus.CANCELLED,
+    },
+    BountyStatus.COMPLETED: {BountyStatus.CLAIMABLE, BountyStatus.CLAIMED},
     BountyStatus.CLAIMED: set(),
     BountyStatus.CANCELLED: set(),
 }
@@ -166,7 +184,10 @@ class BountyOut(BaseModel):
         description="Valor em micro-USDC (1 USDC = 1.000.000)", examples=[5000000]
     )
     status: BountyStatus = Field(
-        description="Status atual do bounty (OPEN, ASSIGNED, SUBMITTED, COMPLETED, CLAIMED)",
+        description=(
+            "Status atual do bounty "
+            "(OPEN, ASSIGNED, SUBMITTED, CLAIMABLE, CLAIMED, CLAIM_FAILED, CANCELLED)"
+        ),
         examples=[BountyStatus.OPEN],
     )
     escrow_pda: str | None = Field(default=None, description="Endereço PDA do escrow on-chain")
@@ -181,6 +202,9 @@ class BountyOut(BaseModel):
     )
     claimed_at: datetime | None = Field(
         default=None, description="Data e hora da liquidação on-chain"
+    )
+    failure_reason: str | None = Field(
+        default=None, description="Motivo de falha caso o pagamento ou resgate falhe"
     )
     created_at: datetime = Field(description="Data de criação da bounty")
     updated_at: datetime = Field(description="Data da última modificação")

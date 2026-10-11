@@ -347,7 +347,7 @@ async def review_bounty_submission(
     - 'REJECT': recusa a solução e reverte o status para ASSIGNED para correções.
     """
     bounty = await bounty_service.get_bounty(db, bounty_id)
-    if bounty.status != BountyStatus.SUBMITTED.value:
+    if bounty.status not in (BountyStatus.SUBMITTED.value, BountyStatus.CLAIM_FAILED.value):
         raise ConflictError(f"Cannot review bounty with status {bounty.status}")
 
     action = data.action.upper()

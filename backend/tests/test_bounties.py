@@ -95,10 +95,10 @@ async def test_full_bounty_lifecycle(
     assert resp.json()["status"] == "SUBMITTED"
     assert resp.json()["pr_url"].endswith("/pull/7")
 
-    # issuer completes (PR merged mocked as True)
+    # issuer completes (PR merged mocked as True) moves to CLAIMABLE
     resp = await client.post(f"/api/v1/bounties/{bounty_id}/complete", headers=auth_headers)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "COMPLETED"
+    assert resp.json()["status"] == "CLAIMABLE"
 
 
 async def test_complete_requires_merged_pr(

@@ -104,6 +104,12 @@ async def session_factory(engine):
 
 
 @pytest.fixture
+async def db_session(session_factory):
+    async with session_factory() as session:
+        yield session
+
+
+@pytest.fixture
 async def client(app_db_override, session_factory):
     transport = ASGITransport(app=app_db_override)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
