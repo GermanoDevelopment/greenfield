@@ -2,6 +2,9 @@
 
 > Turn open source contributions into USDC rewards on Solana.
 
+> [!IMPORTANT]
+> Greenfield is an **MVP built for a Solana hackathon**. It does not pay anyone yet: payouts run on devnet for demos only. **Contributing code to this repository is unpaid**, and the issues here are our MVP backlog, not bounties. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Greenfield links **GitHub issues** to **bounties**. Maintainers price an issue, contributors apply and open a PR, and a **confirmed merge** pays USDC to the contributor's wallet.
 
 ```mermaid
@@ -16,6 +19,16 @@ flowchart LR
 ```
 
 Repository: [github.com/GermanoDevelopment/greenfield](https://github.com/GermanoDevelopment/greenfield)
+
+## Project status
+
+Greenfield is built to reward people who contribute to **open source projects listed on the Greenfield platform**. A maintainer of one of those projects funds a bounty on an issue, and the contributor who gets the PR merged receives the USDC.
+
+That is separate from contributing to Greenfield itself:
+
+- **This repository is not a listed project.** Its issues (the `[backend]`, `[frontend]` and `[contracts]` backlog) are tasks for our MVP. They carry no bounty and no reward.
+- **No real payouts yet.** The MVP runs on Solana devnet. Nobody is being paid, and no real funds are held.
+- **Contributions are welcome as volunteer work.** Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## Stack
 
@@ -184,6 +197,7 @@ greenfield/
 ├── frontend/            # React app (core / infrastructure / presentation)
 ├── contract/            # Anchor escrow program and integration tests
 ├── docker-compose.yml   # Postgres + backend + frontend
+├── CONTRIBUTING.md      # How to contribute (unpaid, volunteer)
 └── FRONTEND-REQUIREMENTS.md
 ```
 
