@@ -75,17 +75,40 @@ def validate_wallet_address(wallet: str) -> bool:
         return False
 
 
+def get_vault_pda(settings: Settings | None = None) -> tuple[Pubkey, int] | None:
+    settings = settings or get_settings()
+    if not settings.solana_program_id:
+        return None
+    try:
+        program_id, mint = _require_program(settings)
+        treasury, _ = find_treasury_pda(program_id, mint)
+        return find_vault_pda(program_id, treasury)
+    except Exception:
+        return None
+
+
 async def get_token_balance(wallet: str, mint: str | None = None) -> float | None:
-    """Return the USDC token balance of a wallet, or None if it cannot be determined."""
+    """Return the USDC token balance of a wallet or token account, or None if undetermined."""
     settings = get_settings()
     if not validate_wallet_address(wallet):
         raise SolanaServiceError("Invalid Solana wallet address")
+    effective_mint = mint or settings.current_usdc_mint
+
+    # First, try getTokenAccountBalance in case wallet is a direct TokenAccount PDA (e.g. vault)
+    try:
+        balance_res = await _rpc_request("getTokenAccountBalance", [wallet])
+        if balance_res and "value" in balance_res:
+            val = balance_res["value"]
+            return float(val.get("uiAmount") or 0.0)
+    except SolanaServiceError:
+        pass
+
     try:
         result = await _rpc_request(
             "getTokenAccountsByOwner",
             [
                 wallet,
-                {"mint": mint or settings.usdc_mint_devnet},
+                {"mint": effective_mint},
                 {"encoding": "jsonParsed"},
             ],
         )
@@ -105,11 +128,30 @@ async def get_token_balance(wallet: str, mint: str | None = None) -> float | Non
     return total
 
 
-async def verify_escrow_funded(escrow_pda: str, expected_amount_usdc: float) -> bool | None:
-    """Check whether the escrow account holds at least the expected USDC amount."""
+async def verify_escrow_funded(
+    escrow_pda: str, expected_amount_usdc: float, mint: str | None = None
+) -> bool | None:
+    """Check whether the escrow account holds at least the expected USDC amount.
+
+    Validates that the address is a valid base58 address. If the on-chain program
+    is configured, verifies that escrow_pda matches the program's vault PDA.
+    Returns:
+      - True: Account exists, matches vault PDA if configured, and balance >= expected
+      - False: Account address invalid, does not match program vault PDA, or balance < expected
+      - None: RPC connection failed or timed out (caller must fail closed)
+    """
     if not validate_wallet_address(escrow_pda):
-        return None
-    balance = await get_token_balance(escrow_pda)
+        return False
+
+    settings = get_settings()
+    if settings.solana_program_id:
+        vault_info = get_vault_pda(settings)
+        if vault_info:
+            expected_vault_str = str(vault_info[0])
+            if escrow_pda != expected_vault_str:
+                return False
+
+    balance = await get_token_balance(escrow_pda, mint=mint or settings.current_usdc_mint)
     if balance is None:
         return None
     return balance >= expected_amount_usdc
@@ -150,7 +192,7 @@ async def execute_bounty_payout(
         raise SolanaServiceError("Invalid destination Solana wallet address")
 
     settings = get_settings()
-    token_mint = mint or settings.usdc_mint_devnet
+    token_mint = mint or settings.current_usdc_mint
     treasury_kp = get_treasury_keypair()
 
     receiver_pubkey = Pubkey.from_string(destination_wallet)
@@ -252,7 +294,7 @@ def _require_program(settings: Settings) -> tuple[Pubkey, Pubkey]:
     if not settings.solana_program_id:
         raise SolanaNotConfiguredError("SOLANA_PROGRAM_ID is not configured")
     return Pubkey.from_string(settings.solana_program_id), Pubkey.from_string(
-        settings.usdc_mint_devnet
+        settings.current_usdc_mint
     )
 
 
@@ -350,17 +392,22 @@ async def fund_treasury_onchain(funder_token_account: str, amount_base_units: in
 
 async def get_treasury_account() -> dict | None:
     settings = get_settings()
-    program_id, mint = _require_program(settings)
-    treasury, _ = find_treasury_pda(program_id, mint)
-
-    result = await _rpc_request(
-        "getAccountInfo", [str(treasury), {"encoding": "base64", "commitment": "confirmed"}]
-    )
-    value = result.get("value")
-    if value is None:
+    if not settings.solana_program_id:
         return None
-    raw = base64.b64decode(value["data"][0])
-    return decode_treasury_account(raw)
+    try:
+        program_id, mint = _require_program(settings)
+        treasury, _ = find_treasury_pda(program_id, mint)
+
+        result = await _rpc_request(
+            "getAccountInfo", [str(treasury), {"encoding": "base64", "commitment": "confirmed"}]
+        )
+        value = result.get("value")
+        if value is None:
+            return None
+        raw = base64.b64decode(value["data"][0])
+        return decode_treasury_account(raw)
+    except Exception:
+        return None
 
 
 def decode_treasury_account(data: bytes) -> dict:
