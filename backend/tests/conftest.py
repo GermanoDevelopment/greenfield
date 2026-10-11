@@ -31,6 +31,64 @@ def _reset_rate_limits():
     reset_rate_limits()
 
 
+@pytest.fixture(autouse=True)
+def _reset_wallet_challenges():
+    from app.services.wallet_service import wallet_challenge_manager
+
+    wallet_challenge_manager.clear()
+    yield
+    wallet_challenge_manager.clear()
+
+
+@pytest.fixture
+def prove_wallet_ownership():
+    from solders.keypair import Keypair
+
+    async def _prove(client, headers, keypair=None):
+        kp = keypair or Keypair()
+        wallet = str(kp.pubkey())
+        resp = await client.post("/api/v1/users/me/wallet/challenge", headers=headers)
+        assert resp.status_code == 200
+        nonce = resp.json()["nonce"]
+        message = resp.json()["message"]
+        sig = str(kp.sign_message(message.encode("utf-8")))
+        verify_resp = await client.post(
+            "/api/v1/users/me/wallet/verify",
+            json={"wallet": wallet, "nonce": nonce, "signature": sig},
+            headers=headers,
+        )
+        assert verify_resp.status_code == 200
+        return kp
+
+    return _prove
+
+
+@pytest.fixture(autouse=True)
+def _mock_github_repository_details(monkeypatch):
+    """
+    Isola testes de chamadas HTTP reais ao GitHub para detalhes de repositório,
+    permitindo que testes unitários criem projetos normalmente com permissões válidas.
+    """
+    from app.services import github_service
+
+    async def fake_fetch_repository_details(owner: str, repo: str) -> dict | None:
+        if repo == "nonexistent-repo":
+            return None
+        return {
+            "github_repo_id": 12345,
+            "owner": owner,
+            "name": repo,
+            "description": f"Test repo {owner}/{repo}",
+            "default_branch": "main",
+            "open_issues_count": 0,
+            "stargazers_count": 10,
+            "html_url": f"https://github.com/{owner}/{repo}",
+            "permissions": {"admin": True, "maintain": True},
+        }
+
+    monkeypatch.setattr(github_service, "fetch_repository_details", fake_fetch_repository_details)
+
+
 @pytest.fixture
 def mock_github_issue_open(monkeypatch):
     from app.services import github_service

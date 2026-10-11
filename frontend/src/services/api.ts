@@ -234,12 +234,30 @@ export const greenfieldApi = {
     const response = await apiClient.get<ApiUserOut>('/auth/me');
     return response.data;
   },
+  getWalletChallenge: async (): Promise<{ nonce: string; message: string; expires_at: number }> => {
+    const response = await apiClient.post<{ nonce: string; message: string; expires_at: number }>(
+      '/users/me/wallet/challenge'
+    );
+    return response.data;
+  },
+  verifyWallet: async (wallet: string, nonce: string, signature: string): Promise<ApiUserOut> => {
+    const response = await apiClient.post<ApiUserOut>('/users/me/wallet/verify', {
+      wallet,
+      nonce,
+      signature,
+    });
+    return response.data;
+  },
   updateWallet: async (wallet: string): Promise<ApiUserOut> => {
     const response = await apiClient.patch<ApiUserOut>('/users/me', { wallet });
     return response.data;
   },
   listUsers: async (): Promise<ApiUserOut[]> => {
     const response = await apiClient.get<ApiUserOut[]>('/users');
+    return response.data;
+  },
+  listMyRepositories: async (): Promise<ApiRepositoryOut[]> => {
+    const response = await apiClient.get<ApiRepositoryOut[]>('/repositories/mine');
     return response.data;
   },
 

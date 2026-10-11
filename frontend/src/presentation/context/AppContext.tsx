@@ -15,6 +15,7 @@ import { GitHubService } from '../../infrastructure/services/GitHubService';
 import { SolanaService } from '../../infrastructure/solana/solanaService';
 import { BountyUseCases } from '../../core/usecases/bountyUseCases';
 import { greenfieldApi, type ApiUserOut, setAuthToken } from '../../services/api';
+import { signAndLinkWallet } from '../../services/walletLinking';
 
 interface AppContextType {
   currentUser: User;
@@ -33,6 +34,10 @@ interface AppContextType {
   login: (email: string, password: string) => Promise<User>;
   register: (email: string, password: string, username?: string) => Promise<User>;
   logout: () => void;
+  linkWalletWithProof: (
+    account: { address: string; [key: string]: any },
+    wallet?: any
+  ) => Promise<User>;
   bountyUseCases: BountyUseCases;
   gitHubService: GitHubService;
   solanaService: SolanaService;
@@ -189,6 +194,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     userRepo.setCurrentUser(GUEST_USER);
     setCurrentUserState(GUEST_USER);
   }, [userRepo]);
+
+  const linkWalletWithProof = useCallback(
+    async (account: { address: string; [key: string]: any }, wallet?: any) => {
+      const updatedApiUser = await signAndLinkWallet(account, wallet);
+      const user = apiUserToUser(updatedApiUser);
+      userRepo.setCurrentUser(user);
+      setCurrentUserState(user);
+      return user;
+    },
+    [userRepo, apiUserToUser]
+  );
 
   // Checa token existente na inicialização
   useEffect(() => {
@@ -373,6 +389,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         login,
         register,
         logout,
+        linkWalletWithProof,
         bountyUseCases,
         gitHubService,
         solanaService,

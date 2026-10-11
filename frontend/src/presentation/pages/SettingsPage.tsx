@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useClient } from '@solana/react';
 import { useConnectedWallet, useDisconnect } from '@solana/kit-plugin-wallet/react';
 import type { AppClient } from '../../client';
+import { greenfieldApi, type ApiRepositoryOut } from '../../services/api';
 import {
   Settings,
   Wallet,
@@ -26,10 +27,36 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' })
 );
 
 export const SettingsPage: React.FC = () => {
-  const { currentUser } = useApp();
+  const { currentUser, isAuthenticated } = useApp();
   const client = useClient<AppClient>();
   const connected = useConnectedWallet(client);
   const disconnectAction = useDisconnect(client);
+
+  const [repositories, setRepositories] = useState<ApiRepositoryOut[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (isAuthenticated) {
+      greenfieldApi
+        .listMyRepositories()
+        .then((data) => {
+          if (!isCancelled) setRepositories(data);
+        })
+        .catch(() => {
+          if (!isCancelled) setRepositories([]);
+        })
+        .finally(() => {
+          if (!isCancelled) setLoadingRepos(false);
+        });
+    } else {
+      setRepositories([]);
+      setLoadingRepos(false);
+    }
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAuthenticated]);
 
   // 1. Limites de Segurança
   const [maxBountyUsdc, setMaxBountyUsdc] = useState<number>(() => {
@@ -63,7 +90,11 @@ export const SettingsPage: React.FC = () => {
   };
 
   const currentWalletAddress =
-    connected?.account?.address || currentUser.wallet_address;
+    connected?.account?.address || currentUser.wallet_address || '';
+
+  const isGithubConnected = Boolean(
+    isAuthenticated && currentUser.github_username && currentUser.github_username !== 'anonymous'
+  );
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto">
@@ -104,16 +135,28 @@ export const SettingsPage: React.FC = () => {
                       GitHub OAuth
                     </span>
                     <span className="text-xs font-mono text-[#28B110] font-bold">
-                      @{currentUser.github_username}
+                      {isGithubConnected ? `@${currentUser.github_username}` : 'Não conectado'}
                     </span>
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/30 text-[11px] font-semibold">
-                  <Check className="w-3 h-3" /> Conectado
-                </span>
+                {isGithubConnected ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#28B110]/20 text-[#28B110] border border-[#28B110]/30 text-[11px] font-semibold">
+                    <Check className="w-3 h-3" /> Conectado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1F261E] text-[#889887] border border-[#2B352A] text-[11px] font-semibold">
+                    Desconectado
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-[#889887]">
-                Repositórios autorizados: <strong>Solana-USDC-Escrow</strong>, <strong>greenfield-core</strong>.
+                {loadingRepos
+                  ? 'Carregando repositórios...'
+                  : repositories.length > 0
+                  ? `Repositórios autorizados: ${repositories.map((r) => r.github_name).join(', ')}`
+                  : isGithubConnected
+                  ? 'Nenhum repositório cadastrado no momento.'
+                  : 'Faça login para autorizar e sincronizar repositórios.'}
               </p>
             </div>
 
@@ -128,24 +171,41 @@ export const SettingsPage: React.FC = () => {
                     <span className="text-xs font-semibold text-white block">
                       Carteira Solana
                     </span>
-                    <span className="text-xs font-mono text-purple-300 font-bold truncate max-w-[140px] block" title={currentWalletAddress}>
-                      {currentWalletAddress.slice(0, 6)}...{currentWalletAddress.slice(-6)}
+                    <span
+                      className="text-xs font-mono text-purple-300 font-bold truncate max-w-[140px] block"
+                      title={currentWalletAddress || 'Nenhuma carteira vinculada'}
+                    >
+                      {currentWalletAddress
+                        ? `${currentWalletAddress.slice(0, 6)}...${currentWalletAddress.slice(-6)}`
+                        : 'Não vinculada'}
                     </span>
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-950/40 text-purple-300 border border-purple-800/60 text-[11px] font-semibold font-mono">
-                  Devnet
-                </span>
+                {currentWalletAddress ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-950/40 text-purple-300 border border-purple-800/60 text-[11px] font-semibold font-mono">
+                    Devnet
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1F261E] text-[#889887] border border-[#2B352A] text-[11px] font-semibold">
+                    Desconectada
+                  </span>
+                )}
               </div>
-              <a
-                href={`https://explorer.solana.com/address/${currentWalletAddress}?cluster=devnet`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-400 hover:underline"
-              >
-                <span>Ver no Solana Explorer</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              {currentWalletAddress ? (
+                <a
+                  href={`https://explorer.solana.com/address/${currentWalletAddress}?cluster=devnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-400 hover:underline"
+                >
+                  <span>Ver no Solana Explorer</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              ) : (
+                <span className="text-[11px] text-[#889887]">
+                  Conecte sua carteira para assinar o desafio de posse.
+                </span>
+              )}
             </div>
           </div>
         </section>

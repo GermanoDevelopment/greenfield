@@ -18,8 +18,10 @@ import {
   ExternalLink,
   Sparkles,
   ArrowRightLeft,
+  ShieldCheck,
 } from 'lucide-react';
 import type { AppClient } from '../client';
+import { useApp } from '../presentation/context/AppContext';
 
 const COPY_FEEDBACK_MS = 2000;
 
@@ -44,12 +46,15 @@ export function WalletButton() {
   const isReady = useIsWalletReady(client);
   const connectAction = useConnect(client);
   const disconnectAction = useDisconnect(client);
+  const { currentUser, isAuthenticated, linkWalletWithProof } = useApp();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [selectedWalletKey, setSelectedWalletKey] = useState<string | null>(null);
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkStatus, setLinkStatus] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,12 +69,6 @@ export function WalletButton() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!connectAction.isRunning) {
-      setSelectedWalletKey(null);
-    }
-  }, [connectAction.isRunning]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -93,22 +92,52 @@ export function WalletButton() {
 
   const openModal = () => {
     connectAction.reset();
+    setLinkStatus(null);
     setIsModalOpen(true);
   };
 
   const handleConnect = async (wallet: UiWallet, key: string) => {
-    if (connectAction.isRunning || disconnectAction.isRunning) return;
+    if (connectAction.isRunning || disconnectAction.isRunning || isLinking) return;
 
     try {
       setSelectedWalletKey(key);
       setCopyError(null);
+      setLinkStatus(null);
       await connectAction.dispatchAsync(wallet);
       if (isMountedRef.current) {
         setIsModalOpen(false);
       }
+
+      // Se o usuário estiver autenticado, solicita a assinatura do desafio de posse
+      if (isAuthenticated) {
+        const account = wallet.accounts?.[0];
+        if (account) {
+          try {
+            setIsLinking(true);
+            await linkWalletWithProof(account, wallet);
+            if (isMountedRef.current) {
+              setLinkStatus('Carteira vinculada com sucesso!');
+            }
+          } catch (signErr) {
+            // Critério de aceitação: "Connecting and signing links the wallet to the account; declining leaves it unlinked."
+            console.warn('Assinatura recusada ou cancelada. Carteira mantida desvinculada:', signErr);
+            if (isMountedRef.current) {
+              setLinkStatus('Assinatura cancelada. Carteira mantida desvinculada.');
+            }
+          } finally {
+            if (isMountedRef.current) {
+              setIsLinking(false);
+            }
+          }
+        }
+      }
     } catch (err) {
       if (isAbortError(err)) return;
       console.error('Falha ao conectar carteira:', err);
+    } finally {
+      if (isMountedRef.current) {
+        setSelectedWalletKey(null);
+      }
     }
   };
 
@@ -173,6 +202,11 @@ export function WalletButton() {
     const address = connected.account.address;
     const walletName = connected.wallet?.name || 'Carteira Conectada';
     const walletIcon = connected.wallet?.icon;
+    const isLinkedToAccount = Boolean(
+      isAuthenticated &&
+      currentUser.wallet_address &&
+      currentUser.wallet_address.toLowerCase() === address.toLowerCase()
+    );
 
     return (
       <div className="relative" ref={dropdownRef}>
@@ -200,14 +234,54 @@ export function WalletButton() {
             role="menu"
           >
             <div className="px-4 py-2 border-b border-[#283426]/70">
-              <div className="flex items-center gap-2 mb-1">
-                {walletIcon && <img src={walletIcon} alt="" className="w-3.5 h-3.5 rounded-full" />}
-                <span className="text-xs font-bold text-white truncate">{walletName}</span>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  {walletIcon && <img src={walletIcon} alt="" className="w-3.5 h-3.5 rounded-full" />}
+                  <span className="text-xs font-bold text-white truncate">{walletName}</span>
+                </div>
+                {isLinkedToAccount ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-[#28B110] font-mono font-bold bg-[#182618] px-2 py-0.5 rounded-full border border-[#28B110]/30">
+                    <Check className="w-3 h-3" /> Vinculada
+                  </span>
+                ) : isAuthenticated ? (
+                  <span className="text-[10px] text-amber-400 font-mono bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-500/30">
+                    Não vinculada
+                  </span>
+                ) : null}
               </div>
               <p className="text-[11px] font-mono text-[#889887] truncate">{address}</p>
             </div>
 
             <div className="p-1 space-y-0.5">
+              {isAuthenticated && !isLinkedToAccount && (
+                <button
+                  onClick={async () => {
+                    if (!connected?.account || isLinking) return;
+                    try {
+                      setIsLinking(true);
+                      setLinkStatus(null);
+                      await linkWalletWithProof(connected.account, connected.wallet);
+                      setLinkStatus('Carteira vinculada com sucesso!');
+                    } catch (err: any) {
+                      setLinkStatus(err?.message || 'Falha ao assinar desafio.');
+                    } finally {
+                      setIsLinking(false);
+                    }
+                  }}
+                  disabled={isLinking}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#28B110] hover:bg-[#182017] rounded-xl transition-colors text-left disabled:opacity-50 cursor-pointer"
+                  type="button"
+                  role="menuitem"
+                >
+                  {isLinking ? (
+                    <Sparkles className="w-3.5 h-3.5 animate-spin text-[#28B110]" />
+                  ) : (
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#28B110]" />
+                  )}
+                  <span>{isLinking ? 'Assinando desafio...' : 'Vincular à Conta (Assinar)'}</span>
+                </button>
+              )}
+
               <button
                 onClick={handleCopyAddress}
                 className="w-full flex items-center justify-between px-3 py-2 text-xs text-[#D2DFD1] hover:text-[#28B110] hover:bg-[#182017] rounded-xl transition-colors text-left cursor-pointer"
@@ -249,6 +323,12 @@ export function WalletButton() {
                 <span>Desconectar</span>
               </button>
             </div>
+
+            {linkStatus && (
+              <p className="px-4 pt-1 pb-1 text-[11px] text-[#28B110]" role="status">
+                {linkStatus}
+              </p>
+            )}
 
             {(copyError || disconnectErrorMessage) && (
               <p className="px-4 pt-1 pb-2 text-[11px] text-rose-400" role="alert">

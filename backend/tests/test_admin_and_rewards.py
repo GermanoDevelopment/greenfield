@@ -90,14 +90,18 @@ async def test_non_owner_non_admin_cannot_update_reward(
 
 
 async def test_solinpy_payout_on_complete(
-    client, auth_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged
+    client,
+    auth_headers,
+    hunter_headers,
+    open_bounty_fixture,
+    mock_github_pr_merged,
+    prove_wallet_ownership,
 ):
     bounty_id = open_bounty_fixture["id"]
     mock_github_pr_merged["body"] = "Closes #10"
 
-    # 1. Hunter configures a Solana wallet
-    wallet_addr = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
-    await client.patch("/api/v1/users/me", json={"wallet": wallet_addr}, headers=hunter_headers)
+    # 1. Hunter configures a Solana wallet with ownership proof
+    await prove_wallet_ownership(client, hunter_headers)
 
     # 2. Assign and Submit
     await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_headers)
@@ -139,14 +143,18 @@ async def test_admin_stats_and_permissions(client, admin_headers, hunter_headers
 
 
 async def test_admin_review_submission_reject_and_approve(
-    client, admin_headers, hunter_headers, open_bounty_fixture, mock_github_pr_merged
+    client,
+    admin_headers,
+    hunter_headers,
+    open_bounty_fixture,
+    mock_github_pr_merged,
+    prove_wallet_ownership,
 ):
     bounty_id = open_bounty_fixture["id"]
     mock_github_pr_merged["body"] = "Closes #10"
 
-    # Hunter configures wallet and submits
-    wallet_addr = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
-    await client.patch("/api/v1/users/me", json={"wallet": wallet_addr}, headers=hunter_headers)
+    # Hunter configures wallet with ownership proof and submits
+    await prove_wallet_ownership(client, hunter_headers)
     await client.post(f"/api/v1/bounties/{bounty_id}/assign", headers=hunter_headers)
     await client.post(
         f"/api/v1/bounties/{bounty_id}/submit",
