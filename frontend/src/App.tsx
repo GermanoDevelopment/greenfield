@@ -24,6 +24,7 @@ import MyContributionsPage from './presentation/pages/MyContributionsPage';
 import ClaimPage from './presentation/pages/ClaimPage';
 import PaymentHistoryPage from './presentation/pages/PaymentHistoryPage';
 import SettingsPage from './presentation/pages/SettingsPage';
+import AuthCallbackPage from './presentation/pages/AuthCallbackPage';
 
 // Páginas de Erro Personalizadas
 import NotFoundPage from './presentation/pages/NotFoundPage';
@@ -39,8 +40,9 @@ export function App() {
           <Router>
             <AppLayout>
               <Routes>
-                {/* 1. Rota Pública: Landing Page */}
+                {/* 1. Rotas Públicas */}
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
                 {/* 2. Rotas Protegidas por Autenticação (Qualquer usuário logado) */}
                 <Route
