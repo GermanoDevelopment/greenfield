@@ -1,12 +1,17 @@
 """Payment state machine: CLAIMABLE, CLAIMED and CLAIM_FAILED (#20)."""
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import select, update
 
 from app.core.config import get_settings
-from app.services import github_service, solana_service
+from app.core.exceptions import ConflictError
+from app.db.base import BountyModel
+from app.schemas.bounty import BountyStatus
+from app.services import bounty_service, github_service, solana_service
 
 WALLET = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 PAYOUT = "app.services.solana_service.execute_bounty_payout"
@@ -244,3 +249,130 @@ async def test_payout_waits_for_confirmation(monkeypatch):
 
     confirm.side_effect = None
     assert await solana_service.execute_bounty_payout(WALLET, 1_000_000) == "sent_sig"
+
+
+# --- Payout reservation: only one caller may start a payout at a time ---------
+
+
+async def _row(session_factory, bounty_id):
+    async with session_factory() as session:
+        return (
+            await session.execute(select(BountyModel).where(BountyModel.id == bounty_id))
+        ).scalar_one()
+
+
+async def _set(session_factory, bounty_id, **values):
+    async with session_factory() as session:
+        await session.execute(
+            update(BountyModel).where(BountyModel.id == bounty_id).values(**values)
+        )
+        await session.commit()
+
+
+async def _reserve(session_factory, bounty_id, from_statuses, to_status=None):
+    async with session_factory() as session:
+        bounty = await session.get(BountyModel, bounty_id)
+        await bounty_service.reserve_payout(
+            session, bounty, from_statuses=from_statuses, to_status=to_status
+        )
+        await session.commit()
+
+
+# --- The lease is released on every way out of a payout ------------------------
+
+
+async def test_lease_is_released_after_a_confirmed_payout(
+    client, session_factory, submitted_bounty, auth_headers, hunter_wallet, custodial
+):
+    with patch(PAYOUT, AsyncMock(return_value="sig")):
+        await client.post(f"/api/v1/bounties/{submitted_bounty}/complete", headers=auth_headers)
+    row = await _row(session_factory, submitted_bounty)
+    assert row.status == "CLAIMED"
+    assert row.payout_lease_until is None
+
+
+async def test_lease_is_released_after_a_failed_payout(
+    client, session_factory, submitted_bounty, auth_headers, hunter_wallet, custodial
+):
+    err = solana_service.SolanaServiceError("rpc down")
+    with patch(PAYOUT, AsyncMock(side_effect=err)):
+        await client.post(f"/api/v1/bounties/{submitted_bounty}/complete", headers=auth_headers)
+    row = await _row(session_factory, submitted_bounty)
+    assert row.status == "CLAIM_FAILED"
+    assert row.payout_lease_until is None
+
+
+async def test_lease_is_released_when_no_payout_is_attempted(
+    client, session_factory, submitted_bounty, auth_headers, custodial
+):
+    # The hunter has no wallet: nothing is paid and the bounty waits as CLAIMABLE.
+    with patch(PAYOUT, AsyncMock()) as payout:
+        await client.post(f"/api/v1/bounties/{submitted_bounty}/complete", headers=auth_headers)
+    payout.assert_not_awaited()
+    row = await _row(session_factory, submitted_bounty)
+    assert row.status == "CLAIMABLE"
+    assert row.payout_lease_until is None
+
+
+# --- The reservation itself ----------------------------------------------------
+
+
+async def test_only_the_first_reservation_wins(
+    client, session_factory, submitted_bounty, auth_headers, hunter_wallet
+):
+    # Sequential on purpose: the test database is SQLite on one shared connection, where a
+    # loser's rollback would undo the winner's uncommitted write. The real concurrency is
+    # covered by the conditional UPDATE itself (checked against Postgres).
+    await _set(session_factory, submitted_bounty, status="CLAIM_FAILED")
+
+    await _reserve(
+        session_factory, submitted_bounty, [BountyStatus.CLAIM_FAILED], BountyStatus.CLAIMABLE
+    )
+    for _ in range(4):
+        with pytest.raises(ConflictError):
+            await _reserve(
+                session_factory,
+                submitted_bounty,
+                [BountyStatus.CLAIM_FAILED, BountyStatus.CLAIMABLE],
+                BountyStatus.CLAIMABLE,
+            )
+
+    row = await _row(session_factory, submitted_bounty)
+    assert row.status == "CLAIMABLE"
+    assert row.payout_lease_until is not None
+
+
+async def test_unexpired_lease_blocks_a_second_reservation(
+    client, session_factory, submitted_bounty, auth_headers, hunter_wallet
+):
+    future = datetime.now(UTC) + timedelta(seconds=60)
+    await _set(session_factory, submitted_bounty, status="CLAIMABLE", payout_lease_until=future)
+
+    with pytest.raises(ConflictError):
+        await _reserve(session_factory, submitted_bounty, [BountyStatus.CLAIMABLE])
+
+
+async def test_expired_lease_can_be_taken_again(
+    client, session_factory, submitted_bounty, auth_headers, hunter_wallet
+):
+    past = datetime.now(UTC) - timedelta(seconds=5)
+    await _set(session_factory, submitted_bounty, status="CLAIMABLE", payout_lease_until=past)
+
+    await _reserve(session_factory, submitted_bounty, [BountyStatus.CLAIMABLE])
+
+    row = await _row(session_factory, submitted_bounty)
+    assert row.payout_lease_until is not None
+    # SQLite hands back naive datetimes; compare as UTC.
+    lease = row.payout_lease_until.replace(tzinfo=UTC)
+    assert lease > datetime.now(UTC)
+
+
+async def test_reservation_refuses_a_status_it_was_not_asked_for(
+    client, session_factory, submitted_bounty, auth_headers, hunter_wallet
+):
+    # The bounty is SUBMITTED, so a reservation that expects CLAIM_FAILED must lose.
+    with pytest.raises(ConflictError):
+        await _reserve(session_factory, submitted_bounty, [BountyStatus.CLAIM_FAILED])
+    row = await _row(session_factory, submitted_bounty)
+    assert row.status == "SUBMITTED"
+    assert row.payout_lease_until is None
