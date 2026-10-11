@@ -225,4 +225,16 @@ async def fetch_repository_details(
         "open_issues_count": data.get("open_issues_count", 0),
         "stargazers_count": data.get("stargazers_count", 0),
         "html_url": data.get("html_url", f"https://github.com/{owner}/{repo}"),
+        "permissions": data.get("permissions", {}),
     }
+
+
+def check_repository_ownership(repo_details: dict[str, Any] | None, username: str) -> bool:
+    """Verifica se o usuário é o proprietário ou possui permissão de admin/maintainer."""
+    if not repo_details:
+        return False
+    owner = repo_details.get("owner", "")
+    if owner and owner.lower() == username.lower():
+        return True
+    perms = repo_details.get("permissions") or {}
+    return bool(perms.get("admin") or perms.get("maintain"))
