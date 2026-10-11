@@ -4,19 +4,13 @@
  */
 
 export type BountyStatus =
-  | 'DRAFT'
-  | 'FUNDED'
   | 'OPEN_FOR_PROPOSALS'
   | 'ASSIGNED'
-  | 'IN_PROGRESS'
   | 'PR_OPEN'
-  | 'MERGED'
   | 'CLAIMABLE'
   | 'CLAIMED'
-  | 'CANCELLED'
-  | 'EXPIRED'
-  | 'VERIFICATION_FAILED'
-  | 'CLAIM_FAILED';
+  | 'CLAIM_FAILED'
+  | 'CANCELLED';
 
 export type UserRole =
   | 'maintainer'
@@ -128,6 +122,8 @@ export interface Bounty {
   claim?: Claim;
   proposals?: Proposal[];
   github_issue_assigned?: boolean;
+  claim_signature?: string;
+  failure_reason?: string | null;
 }
 
 export interface Treasury {

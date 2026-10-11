@@ -23,8 +23,13 @@ function mapApiStatusToDomain(status: string): BountyStatus {
       return 'ASSIGNED';
     case 'SUBMITTED':
       return 'PR_OPEN';
+    case 'CLAIMABLE':
+      return 'CLAIMABLE';
+    case 'CLAIMED':
     case 'COMPLETED':
       return 'CLAIMED';
+    case 'CLAIM_FAILED':
+      return 'CLAIM_FAILED';
     case 'CANCELLED':
       return 'CANCELLED';
     default:
@@ -149,9 +154,22 @@ export class HttpBountyRepository implements IBountyRepository {
       await greenfieldApi.submitBounty(numericId, patch.pr.url);
     }
 
-    // Se houver completion/merge
-    if (patch.status === 'CLAIMED' || patch.status === 'MERGED') {
+    // Se houver completion/merge (move para CLAIMABLE no backend)
+    if (patch.status === 'CLAIMABLE') {
       await greenfieldApi.completeBounty(numericId);
+    }
+
+    // Se houver claim reportado
+    if (patch.status === 'CLAIMED' && (patch.claim_signature || patch.claim?.transaction_signature)) {
+      await greenfieldApi.reportClaim(
+        numericId,
+        patch.claim_signature || patch.claim?.transaction_signature || ''
+      );
+    }
+
+    // Se houver cancelamento
+    if (patch.status === 'CANCELLED') {
+      await greenfieldApi.cancelBounty(numericId);
     }
 
     const updated = await greenfieldApi.getBounty(numericId);

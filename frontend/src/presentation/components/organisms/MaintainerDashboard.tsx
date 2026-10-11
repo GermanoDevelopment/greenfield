@@ -21,7 +21,7 @@ export const MaintainerDashboard: React.FC = () => {
     (b) => b.status !== 'CLAIMED' && b.status !== 'CANCELLED'
   ).length;
   const inProgressBounties = bounties.filter(
-    (b) => b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED'
+    (b) => b.status === 'ASSIGNED' || b.status === 'PR_OPEN'
   ).length;
   const awaitingMergeBounties = bounties.filter((b) => b.status === 'PR_OPEN').length;
   const totalPaidUsdc = bounties
@@ -30,8 +30,8 @@ export const MaintainerDashboard: React.FC = () => {
 
   const filteredBounties = bounties.filter((b) => {
     if (filterStatus === 'ALL') return true;
-    if (filterStatus === 'OPEN_FOR_PROPOSALS') return b.status === 'OPEN_FOR_PROPOSALS' || b.status === 'FUNDED';
-    if (filterStatus === 'IN_PROGRESS') return b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED';
+    if (filterStatus === 'OPEN_FOR_PROPOSALS') return b.status === 'OPEN_FOR_PROPOSALS';
+    if (filterStatus === 'ASSIGNED') return b.status === 'ASSIGNED';
     if (filterStatus === 'PR_OPEN') return b.status === 'PR_OPEN';
     if (filterStatus === 'CLAIMABLE') return b.status === 'CLAIMABLE';
     if (filterStatus === 'CLAIMED') return b.status === 'CLAIMED';
@@ -101,7 +101,7 @@ export const MaintainerDashboard: React.FC = () => {
               >
                 <option value="ALL" className="bg-[#182017] text-[#D2DFD1]">Todos os Estados</option>
                 <option value="OPEN_FOR_PROPOSALS" className="bg-[#182017] text-[#D2DFD1]">Propostas Abertas</option>
-                <option value="IN_PROGRESS" className="bg-[#182017] text-[#D2DFD1]">Em Desenvolvimento</option>
+                <option value="ASSIGNED" className="bg-[#182017] text-[#D2DFD1]">Atribuído (Dev Ativo)</option>
                 <option value="PR_OPEN" className="bg-[#182017] text-[#D2DFD1]">Aguardando Merge (PR Open)</option>
                 <option value="CLAIMABLE" className="bg-[#182017] text-[#D2DFD1]">Pronto para Resgate</option>
                 <option value="CLAIMED" className="bg-[#182017] text-[#D2DFD1]">Concluídos (Pago)</option>

@@ -9,16 +9,13 @@ interface BountyStateStepperProps {
 const PRIMARY_STEPS: { status: BountyStatus; label: string; desc: string }[] = [
   { status: 'OPEN_FOR_PROPOSALS', label: '1. Propostas', desc: 'Devs submetem propostas' },
   { status: 'ASSIGNED', label: '2. Atribuído', desc: 'Atribuição via GitHub API' },
-  { status: 'IN_PROGRESS', label: '3. Em Curso', desc: 'Desenvolvimento' },
-  { status: 'PR_OPEN', label: '4. PR Aberto', desc: 'Aguardando revisão' },
-  { status: 'MERGED', label: '5. Merge', desc: 'Merge pelo mantenedor' },
-  { status: 'CLAIMED', label: '6. Pago', desc: 'USDC liquidado via Solana' },
+  { status: 'PR_OPEN', label: '3. PR Aberto', desc: 'Aguardando revisão' },
+  { status: 'CLAIMABLE', label: '4. Resgatável', desc: 'PR mergeado, pronto para resgate' },
+  { status: 'CLAIMED', label: '5. Pago', desc: 'USDC liquidado via Solana' },
 ];
 
 export const BountyStateStepper: React.FC<BountyStateStepperProps> = ({ currentStatus }) => {
-  const isException = ['CANCELLED', 'EXPIRED', 'VERIFICATION_FAILED', 'CLAIM_FAILED'].includes(
-    currentStatus
-  );
+  const isException = ['CANCELLED', 'CLAIM_FAILED'].includes(currentStatus);
 
   const currentIndex = PRIMARY_STEPS.findIndex((s) => s.status === currentStatus);
 
@@ -41,7 +38,7 @@ export const BountyStateStepper: React.FC<BountyStateStepperProps> = ({ currentS
           Estado de Exceção: <strong>{currentStatus}</strong>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
           {PRIMARY_STEPS.map((step, idx) => {
             const isCompleted = currentIndex > idx;
             const isCurrent = currentIndex === idx;

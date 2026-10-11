@@ -120,10 +120,7 @@ export class BountyUseCases {
     const bounty = await this.bountyRepo.getById(params.bountyId);
     if (!bounty) throw new Error('Bounty não encontrada.');
 
-    if (
-      bounty.status !== 'OPEN_FOR_PROPOSALS' &&
-      bounty.status !== 'FUNDED'
-    ) {
+    if (bounty.status !== 'OPEN_FOR_PROPOSALS') {
       throw new Error(
         `Não é possível enviar proposta. A issue está no estado ${bounty.status}.`
       );
@@ -188,7 +185,6 @@ export class BountyUseCases {
     if (!bounty) throw new Error('Bounty não encontrada');
 
     if (
-      bounty.status !== 'FUNDED' &&
       bounty.status !== 'OPEN_FOR_PROPOSALS' &&
       bounty.status !== 'ASSIGNED'
     ) {
@@ -220,7 +216,7 @@ export class BountyUseCases {
     }
 
     return await this.bountyRepo.update(bountyId, {
-      status: 'IN_PROGRESS',
+      status: 'ASSIGNED',
     });
   }
 
@@ -240,9 +236,9 @@ export class BountyUseCases {
     const bounty = await this.bountyRepo.getById(bountyId);
     if (!bounty) throw new Error('Bounty não encontrada');
 
-    if (bounty.status !== 'ASSIGNED' && bounty.status !== 'IN_PROGRESS') {
+    if (bounty.status !== 'ASSIGNED') {
       throw new Error(
-        `Não é possível associar Pull Request no estado ${bounty.status}. Estado deve ser ASSIGNED ou IN_PROGRESS.`
+        `Não é possível associar Pull Request no estado ${bounty.status}. Estado deve ser ASSIGNED.`
       );
     }
 
@@ -375,10 +371,10 @@ export class BountyUseCases {
       (b) => b.status !== 'CLAIMED' && b.status !== 'CANCELLED'
     ).length;
     const openForProposalsCount = all.filter(
-      (b) => b.status === 'OPEN_FOR_PROPOSALS' || b.status === 'FUNDED'
+      (b) => b.status === 'OPEN_FOR_PROPOSALS'
     ).length;
     const inProgressBounties = all.filter(
-      (b) => b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED'
+      (b) => b.status === 'ASSIGNED' || b.status === 'PR_OPEN'
     ).length;
     const awaitingMergeBounties = all.filter((b) => b.status === 'PR_OPEN').length;
     const totalPaidUsdc = all
@@ -416,11 +412,13 @@ export class BountyUseCases {
     const assignedCount = devBounties.filter(
       (b) =>
         b.developer_id === developerId &&
-        (b.status === 'ASSIGNED' || b.status === 'IN_PROGRESS' || b.status === 'PR_OPEN')
+        (b.status === 'ASSIGNED' || b.status === 'PR_OPEN')
     ).length;
 
     const inProgressCount = devBounties.filter(
-      (b) => b.developer_id === developerId && b.status === 'IN_PROGRESS'
+      (b) =>
+        b.developer_id === developerId &&
+        (b.status === 'ASSIGNED' || b.status === 'PR_OPEN')
     ).length;
 
     const claimableCount = devBounties.filter(

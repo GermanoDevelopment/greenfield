@@ -27,7 +27,7 @@ export const DeveloperDashboard: React.FC = () => {
   const inProgressCount = devBounties.filter(
     (b) =>
       b.developer_id === currentUser.id &&
-      (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED' || b.status === 'PR_OPEN')
+      (b.status === 'ASSIGNED' || b.status === 'PR_OPEN')
   ).length;
   const claimableBounties = devBounties.filter(
     (b) => b.developer_id === currentUser.id && b.status === 'CLAIMABLE'
