@@ -22,6 +22,7 @@ import {
   type ApiRepositoryOut,
   type ApiTrackedIssueOut,
 } from '../../services/api';
+import { formatMicroUsdc } from '../../lib/currency';
 
 export const AdminPage: React.FC = () => {
   const { isBackendConnected, currentUser } = useApp();
@@ -937,7 +938,7 @@ export const AdminPage: React.FC = () => {
                     <div className="text-right shrink-0">
                       <div className="text-xs text-[#889887]">Recompensa Devnet</div>
                       <div className="text-xl font-black text-[#28B110]">
-                        ${bounty.amount_usdc} USDC
+                        {formatMicroUsdc(bounty.amount_usdc)}
                       </div>
                     </div>
                   </div>

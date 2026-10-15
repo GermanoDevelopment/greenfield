@@ -1,6 +1,18 @@
 import type { IBountyRepository } from '../../core/domain/ports';
-import type { Bounty, BountyStatus, Proposal, User } from '../../core/domain/types';
+import type { Bounty, BountyStatus, Proposal, User, Repository } from '../../core/domain/types';
+import { microUsdcToUsdc, pointsToUsdc } from '../../lib/currency';
 import { greenfieldApi, type ApiBountyOut, type ApiUserOut } from '../../services/api';
+
+function parseRepoFromIssueUrl(url?: string): { owner: string; name: string } {
+  if (!url) return { owner: 'greenfield', name: 'repo' };
+  try {
+    const match = url.match(/(?:github\.com|api\.github\.com\/repos)\/([^\/]+)\/([^\/]+)/);
+    if (match) {
+      return { owner: match[1], name: match[2] };
+    }
+  } catch {}
+  return { owner: 'greenfield', name: 'repo' };
+}
 
 function mapApiUserToDomain(user?: ApiUserOut): User | undefined {
   if (!user) return undefined;
@@ -40,8 +52,19 @@ function mapApiStatusToDomain(status: string): BountyStatus {
 const MERGED_STATUSES = new Set(['CLAIMABLE', 'CLAIMED', 'CLAIM_FAILED']);
 
 function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
-  const usdcAmount = api.amount_usdc ? api.amount_usdc / 1_000_000 : api.points / 100;
+  const usdcAmount = api.amount_usdc ? microUsdcToUsdc(api.amount_usdc) : pointsToUsdc(api.points);
   const domainStatus = mapApiStatusToDomain(api.status);
+  const repoInfo = parseRepoFromIssueUrl(api.issue_url);
+
+  const repository: Repository = {
+    id: String(api.repository_id || api.project_id || 1),
+    github_repository_id: api.repository_id || 1,
+    owner: repoInfo.owner,
+    name: repoInfo.name,
+    github_url: `https://github.com/${repoInfo.owner}/${repoInfo.name}`,
+    maintainer_user_id: String(api.issuer_id),
+    approved_for_round: true,
+  };
 
   const proposals: Proposal[] = (api.applicants || []).map((app) => ({
     id: String(app.id),
@@ -68,6 +91,7 @@ function mapApiBountyToDomain(api: ApiBountyOut): Bounty {
       status: MERGED_STATUSES.has(api.status) ? 'CLOSED' : 'OPEN',
     },
     repository_id: String(api.repository_id || api.project_id),
+    repository,
     maintainer_id: String(api.issuer_id),
     maintainer: mapApiUserToDomain(api.issuer),
     developer_id: api.hunter_id ? String(api.hunter_id) : undefined,

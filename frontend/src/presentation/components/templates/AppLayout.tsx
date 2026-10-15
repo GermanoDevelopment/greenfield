@@ -165,7 +165,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               Greenfield MVP &copy; {new Date().getFullYear()} — Plataforma de Bounties em Solana Devnet
             </span>
             <span className="font-mono text-[10px] text-[#28B110] bg-[#1A2319] border border-[#28B110]/30 px-2 py-0.5 rounded">
-              Canonical Invariant: 1 Point = 1 USDC
+              Canonical Invariant: 100 Points = 1 USDC
             </span>
           </div>
         </footer>

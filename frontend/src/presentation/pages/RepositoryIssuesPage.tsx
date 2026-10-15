@@ -18,6 +18,7 @@ import {
   type ApiGitHubIssueOut,
   type ApiBountyOut,
 } from '../../services/api';
+import { pointsToMicroUsdc } from '../../lib/currency';
 
 // Cada issue rastreada corresponde a uma pontuação fixa, sem valor monetário associado
 const ISSUE_POINTS = 120;
@@ -331,7 +332,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                             issue_number: issue.number,
                             issue_title: issue.title,
                             issue_body: issue.body,
-                            amount_usdc: points,
+                            amount_usdc: pointsToMicroUsdc(points),
                             points: points,
                             status: 'OPEN',
                             escrow_pda: null,
@@ -363,7 +364,7 @@ export const RepositoryIssuesPage: React.FC = () => {
                             issue_number: issue.number,
                             issue_title: issue.title,
                             issue_body: issue.body,
-                            amount_usdc: points,
+                            amount_usdc: pointsToMicroUsdc(points),
                             points: points,
                             status: 'ASSIGNED',
                             escrow_pda: null,
