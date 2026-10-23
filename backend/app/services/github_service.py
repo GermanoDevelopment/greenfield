@@ -122,14 +122,14 @@ async def fetch_pull_request(pr_url: str) -> dict[str, Any] | None:
     }
 
 
-async def build_login_url(state: str | None = None) -> str:
+async def build_login_url(state: str | None = None, scope: str = "read:user,public_repo") -> str:
     settings = get_settings()
     from urllib.parse import urlencode
 
     params: dict[str, str] = {
         "client_id": settings.github_client_id,
         "redirect_uri": settings.github_redirect_uri,
-        "scope": "read:user",
+        "scope": scope,
     }
     if state:
         params["state"] = state
