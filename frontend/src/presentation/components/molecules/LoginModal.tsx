@@ -24,7 +24,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onClose: propOnClose,
 }) => {
   const navigate = useNavigate();
-  const { isLoginModalOpen, closeLoginModal, login, register } = useApp();
+  const { isLoginModalOpen, closeLoginModal, login, register, authMessage } = useApp();
 
   const isOpen = propIsOpen !== undefined ? propIsOpen : isLoginModalOpen;
   const handleClose = propOnClose || closeLoginModal;
@@ -127,6 +127,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         </div>
 
         {/* Feedback Messages */}
+        {authMessage && !errorMessage && !successMessage && (
+          <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 flex items-start gap-2.5 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{authMessage}</span>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-200 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />

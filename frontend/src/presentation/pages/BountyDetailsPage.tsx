@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { useToast } from '../context/ToastContext';
 import BountyStateStepper from '../components/molecules/BountyStateStepper';
 import StatusBadge from '../components/atoms/StatusBadge';
 import PointsBadge from '../components/atoms/PointsBadge';
@@ -26,6 +27,7 @@ export const BountyDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const {
     bounties,
+    loading,
     currentUser,
     submitProposal,
     acceptProposalAndAssign,
@@ -33,6 +35,8 @@ export const BountyDetailsPage: React.FC = () => {
     mergePullRequest,
     solanaService,
   } = useApp();
+
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -45,10 +49,32 @@ export const BountyDetailsPage: React.FC = () => {
 
   const bounty = bounties.find((b) => b.id === id);
 
+  if (loading) {
+    return (
+      <div className="py-24 flex flex-col items-center justify-center gap-4 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-[#182017] border border-[#283426] flex items-center justify-center shadow-lg">
+          <Sparkles className="w-6 h-6 text-[#28B110] animate-spin" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-base font-bold text-white">Carregando detalhes da Bounty...</h2>
+          <p className="text-xs text-[#889887]">Obtendo dados on-chain e especificações da issue</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!bounty) {
     return (
-      <div className="text-center py-16 flex flex-col items-center gap-4">
-        <h2 className="text-xl font-bold text-white">Bounty não encontrada</h2>
+      <div className="text-center py-20 flex flex-col items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-rose-950/30 border border-rose-500/30 flex items-center justify-center text-rose-400">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-xl font-bold text-white">Bounty não encontrada</h2>
+          <p className="text-xs text-[#889887]">
+            A bounty com identificador #{id} não foi localizada ou não está disponível.
+          </p>
+        </div>
         <Link to="/dashboard">
           <DesygenButton variant="secondary" size="md">
             Voltar ao Dashboard
@@ -75,8 +101,10 @@ export const BountyDetailsPage: React.FC = () => {
       await submitProposal(bounty.id, coverLetter, estimatedDays);
       setShowProposalForm(false);
       setCoverLetter('');
+      toastSuccess('Proposta enviada com sucesso ao mantenedor!');
     } catch (err: any) {
       setActionError(err.message);
+      toastError(err.message || 'Erro ao submeter proposta.');
     } finally {
       setActionLoading(false);
     }
@@ -88,8 +116,10 @@ export const BountyDetailsPage: React.FC = () => {
     setActionError(null);
     try {
       await acceptProposalAndAssign(bounty.id, proposalId);
+      toastSuccess('Proposta aceita e desenvolvedor atribuído com sucesso!');
     } catch (err: any) {
       setActionError(err.message);
+      toastError(err.message || 'Erro ao aceitar proposta.');
     } finally {
       setActionLoading(false);
     }
@@ -108,8 +138,10 @@ export const BountyDetailsPage: React.FC = () => {
         url: `https://github.com/${bounty.repository?.owner}/${bounty.repository?.name}/pull/${prNumber}`,
         author_github_username: currentUser.github_username,
       });
+      toastSuccess('Pull Request aberto e registrado na plataforma!');
     } catch (err: any) {
       setActionError(err.message);
+      toastError(err.message || 'Erro ao registrar Pull Request.');
     } finally {
       setActionLoading(false);
     }
@@ -121,8 +153,10 @@ export const BountyDetailsPage: React.FC = () => {
     setActionError(null);
     try {
       await mergePullRequest(bounty.id);
+      toastSuccess('Pull Request verificado e merge concluído com sucesso!');
     } catch (err: any) {
       setActionError(err.message);
+      toastError(err.message || 'Erro ao realizar merge do Pull Request.');
     } finally {
       setActionLoading(false);
     }

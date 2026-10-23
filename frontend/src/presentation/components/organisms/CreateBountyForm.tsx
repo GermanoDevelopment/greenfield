@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/ToastContext';
 import { pointsToUsdc } from '../../../core/domain/types';
 import type { Issue, Repository } from '../../../core/domain/types';
 import {
@@ -20,6 +21,7 @@ import DesygenButton from '../atoms/DesygenButton';
 export const CreateBountyForm: React.FC = () => {
   const navigate = useNavigate();
   const { treasury, gitHubService, createBounty, availableUsers, toggleRepositoryApproval } = useApp();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   // Estado do Wizard (1, 2, 3)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -134,9 +136,12 @@ export const CreateBountyForm: React.FC = () => {
         points,
         developerId: selectedDevId || undefined,
       });
+      toastSuccess(`Bounty criada com sucesso para ${selectedRepo?.name || 'repositório'}!`);
       navigate(`/bounties/${bounty.id}`);
     } catch (err: any) {
-      setError(err.message || 'Erro ao criar bounty on-chain.');
+      const msg = err.message || 'Erro ao criar bounty on-chain.';
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -517,9 +522,9 @@ export const CreateBountyForm: React.FC = () => {
         )}
 
         {error && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-            <span>{error}</span>
+          <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-2.5 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span className="leading-relaxed">{error}</span>
           </div>
         )}
       </form>
