@@ -21,6 +21,19 @@ FAKE_SIGNATURE = "5" * 88
 def onchain_enabled(monkeypatch):
     monkeypatch.setattr(solana_service, "is_onchain_enabled", lambda *a, **k: True)
 
+    async def fake_get_treasury():
+        return {
+            "authority": "11111111111111111111111111111111",
+            "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            "vault": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            "total_deposited": 25_000_000_000,
+            "total_reserved": 0,
+            "total_claimed": 0,
+            "bump": 255,
+        }
+
+    monkeypatch.setattr(solana_service, "get_treasury_account", fake_get_treasury)
+
 
 @pytest.fixture
 def mock_onchain_calls(monkeypatch, onchain_enabled):
