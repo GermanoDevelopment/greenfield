@@ -54,6 +54,15 @@ async def add_repository_to_project(
         )
     owner, repo_name = parts[0], parts[1]
 
+    # Verify repository ownership via GitHub API
+    repo_details = await github_service.fetch_repository_details(owner, repo_name)
+    if repo_details is None:
+        raise NotFoundError(f"GitHub repository '{cleaned}'")
+
+    is_owner = github_service.check_repository_ownership(repo_details, current_user.username)
+    if not is_owner and current_user.role != "ADMIN":
+        raise ForbiddenError(f"You do not own or administer the repository '{cleaned}'")
+
     # Check duplication in this project
     stmt = select(RepositoryModel).where(
         RepositoryModel.project_id == project_id,
@@ -68,17 +77,41 @@ async def add_repository_to_project(
 
     repo = RepositoryModel(
         project_id=project_id,
-        github_owner=owner,
-        github_name=repo_name,
+        github_owner=repo_details["owner"],
+        github_name=repo_details["name"],
         github_repo=cleaned,
-        description=data.description,
-        default_branch=data.default_branch,
+        github_repo_id=repo_details.get("github_repo_id"),
+        description=data.description or repo_details.get("description"),
+        default_branch=data.default_branch or repo_details.get("default_branch", "main"),
         is_active=True,
     )
     db.add(repo)
     await db.commit()
     await db.refresh(repo)
     return repo
+
+
+@router.get(
+    "/repositories/mine",
+    response_model=list[RepositoryOut],
+    summary="Listar repositórios autorizados do mantenedor atual",
+)
+async def list_my_repositories(
+    current_user: CurrentUser,
+    db: DbSession,
+) -> list[RepositoryModel]:
+    """Retorna os repositórios que o mantenedor atual está autorizado a gerenciar."""
+    if current_user.role == "ADMIN":
+        stmt = select(RepositoryModel).order_by(RepositoryModel.created_at.desc())
+    else:
+        stmt = (
+            select(RepositoryModel)
+            .join(ProjectModel, RepositoryModel.project_id == ProjectModel.id)
+            .where(ProjectModel.owner_id == current_user.id)
+            .order_by(RepositoryModel.created_at.desc())
+        )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
 
 
 @router.get(

@@ -31,6 +31,32 @@ def _reset_rate_limits():
     reset_rate_limits()
 
 
+@pytest.fixture(autouse=True)
+def _mock_github_repository_details(monkeypatch):
+    """
+    Isola testes de chamadas HTTP reais ao GitHub para detalhes de repositório,
+    permitindo que testes unitários criem projetos normalmente com permissões válidas.
+    """
+    from app.services import github_service
+
+    async def fake_fetch_repository_details(owner: str, repo: str) -> dict | None:
+        if repo == "nonexistent-repo":
+            return None
+        return {
+            "github_repo_id": 12345,
+            "owner": owner,
+            "name": repo,
+            "description": f"Test repo {owner}/{repo}",
+            "default_branch": "main",
+            "open_issues_count": 0,
+            "stargazers_count": 10,
+            "html_url": f"https://github.com/{owner}/{repo}",
+            "permissions": {"admin": True, "maintain": True},
+        }
+
+    monkeypatch.setattr(github_service, "fetch_repository_details", fake_fetch_repository_details)
+
+
 @pytest.fixture
 def mock_github_issue_open(monkeypatch):
     from app.services import github_service

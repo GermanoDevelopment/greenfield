@@ -3,9 +3,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser, DbSession
-from app.core.exceptions import ForbiddenError, NotFoundError
-from app.db.base import ProjectModel
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
+from app.db.base import ProjectModel, RepositoryModel
 from app.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
+from app.services import github_service
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -36,14 +37,54 @@ async def create_project(
 ) -> ProjectModel:
     """
     Registra um novo projeto no Greenfield associado a um repositório GitHub
-    primário do usuário mantenedor.
+    primário do usuário mantenedor após validação de propriedade.
     """
+    cleaned = data.github_repo.strip().removeprefix("https://github.com/").strip("/")
+    parts = cleaned.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise ValidationError("Invalid github_repo format. Must be 'owner/repo'.")
+    owner, repo_name = parts[0], parts[1]
+
+    # Verify repository exists and metadata via GitHub API
+    repo_details = await github_service.fetch_repository_details(owner, repo_name)
+    if repo_details is None:
+        raise NotFoundError(f"GitHub repository '{cleaned}'")
+
+    # Verify ownership or admin permission
+    is_owner = github_service.check_repository_ownership(repo_details, current_user.username)
+    if not is_owner and current_user.role != "ADMIN":
+        raise ForbiddenError(f"You do not own or administer the repository '{cleaned}'")
+
+    # Check for duplicate project
+    existing = await db.execute(select(ProjectModel).where(ProjectModel.github_repo == cleaned))
+    if existing.scalar_one_or_none():
+        raise ConflictError(f"Project for repository '{cleaned}' is already registered")
+
     project = ProjectModel(
         owner_id=current_user.id,
-        github_repo=data.github_repo,
-        description=data.description,
+        github_repo=cleaned,
+        description=data.description or repo_details.get("description"),
     )
     db.add(project)
+    await db.flush()
+
+    repo = RepositoryModel(
+        project_id=project.id,
+        github_owner=repo_details["owner"],
+        github_name=repo_details["name"],
+        github_repo=cleaned,
+        github_repo_id=repo_details.get("github_repo_id"),
+        description=repo_details.get("description"),
+        default_branch=repo_details.get("default_branch", "main"),
+        is_active=True,
+    )
+    db.add(repo)
+
+    # Automatically promote contributor to MAINTAINER role
+    if current_user.role == "CONTRIBUTOR":
+        current_user.role = "MAINTAINER"
+        db.add(current_user)
+
     await db.commit()
     await db.refresh(project, attribute_names=["owner", "repositories"])
     return project
