@@ -359,7 +359,7 @@ export class BountyUseCases {
    * Métricas do Mantenedor
    */
   async getMaintainerMetrics(
-    _maintainerId?: string
+    maintainerId?: string
   ): Promise<{
     treasury: Treasury;
     activeBounties: number;
@@ -368,7 +368,10 @@ export class BountyUseCases {
     awaitingMergeBounties: number;
     totalPaidUsdc: number;
   }> {
-    const all = await this.bountyRepo.getAll();
+    const rawAll = await this.bountyRepo.getAll();
+    const all = maintainerId
+      ? rawAll.filter((b) => b.maintainer_id === maintainerId)
+      : rawAll;
     const treasury = await this.treasuryRepo.getTreasury();
 
     const activeBounties = all.filter(

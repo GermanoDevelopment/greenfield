@@ -12,8 +12,15 @@ import {
   LogIn,
   LogOut,
   KeyRound,
+  PlusCircle,
+  GitPullRequest,
+  Wallet,
+  History,
+  Settings,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { isMaintainerRole, isDeveloperRole, isAdminRole } from '../../../core/domain/roles';
+import { getChainDisplayLabel, SOLANA_CHAIN } from '../../../client';
 
 interface SidebarProps {
   onCloseMobile?: () => void;
@@ -27,6 +34,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     logout,
     isBackendConnected,
   } = useApp();
+
+  const isMaintainer = isMaintainerRole(currentUser?.role);
+  const isDeveloper = isDeveloperRole(currentUser?.role);
+  const isAdmin = isAdminRole(currentUser?.role);
+
+  // Network configuration from environment
+  const networkLabel = getChainDisplayLabel();
+  const networkBadge = (SOLANA_CHAIN.includes(':') ? SOLANA_CHAIN.split(':')[1] : SOLANA_CHAIN).toUpperCase();
 
   const navItems = [
     {
@@ -47,11 +62,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       icon: ListTodo,
       description: 'Tarefas e pontuações',
     },
+    ...(isMaintainer || isAdmin
+      ? [
+          {
+            label: 'Nova Bounty',
+            path: '/bounties/new',
+            icon: PlusCircle,
+            description: 'Criar nova recompensa',
+          },
+        ]
+      : []),
+    ...(isDeveloper || isAdmin
+      ? [
+          {
+            label: 'Minhas Contribuições',
+            path: '/contributions',
+            icon: GitPullRequest,
+            description: 'Propostas e entregas',
+          },
+          {
+            label: 'Resgatar Recompensas',
+            path: '/claim',
+            icon: Wallet,
+            description: 'Resgate de USDC on-chain',
+          },
+        ]
+      : []),
     {
       label: 'Minhas Rewards',
       path: '/rewards',
       icon: Coins,
       description: 'Recompensas USDC',
+    },
+    {
+      label: 'Histórico',
+      path: '/history',
+      icon: History,
+      description: 'Transações e pagamentos',
     },
     {
       label: 'Meu Perfil',
@@ -60,12 +107,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       description: 'GitHub e Carteira',
     },
     {
-      label: 'Painel Admin',
-      path: '/admin',
-      icon: ShieldCheck,
-      description: 'Gestão e moderação',
-      badge: 'Admin',
+      label: 'Configurações',
+      path: '/settings',
+      icon: Settings,
+      description: 'Preferências do sistema',
     },
+    ...(isAdmin
+      ? [
+          {
+            label: 'Painel Admin',
+            path: '/admin',
+            icon: ShieldCheck,
+            description: 'Gestão e moderação',
+            badge: 'Admin',
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -88,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               GREEN<span className="text-[#28B110]">FIELD</span>
             </span>
             <span className="text-[10px] font-mono text-[#889887] tracking-widest">
-              DEVNET MVP
+              {networkBadge} MVP
             </span>
           </div>
         </Link>
@@ -102,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#28B110] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#28B110]"></span>
             </span>
-            Solana Devnet
+            {networkLabel}
           </span>
           <span className="text-[10px] font-mono text-[#28B110] bg-[#192A17] border border-[#28B110]/30 px-2 py-0.5 rounded">
             Active

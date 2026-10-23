@@ -10,6 +10,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isAdminRole, isMaintainerRole } from '../../core/domain/roles';
 import { greenfieldApi, type ApiRepositoryOut } from '../../services/api';
 
 export const RepositoriesPage: React.FC = () => {
@@ -57,7 +58,7 @@ export const RepositoriesPage: React.FC = () => {
           </p>
         </div>
 
-        {['ADMIN', 'MAINTAINER', 'admin', 'maintainer'].includes(currentUser.role) && (
+        {(isAdminRole(currentUser.role) || isMaintainerRole(currentUser.role)) && (
           <Link
             to="/admin"
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#28B110] text-[#101410] font-bold text-sm hover:brightness-110 transition-all shadow-md shrink-0"

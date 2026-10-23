@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isAdminRole, isMaintainerRole } from '../../core/domain/roles';
 import { greenfieldApi } from '../../services/api';
 
 export const ProfilePage: React.FC = () => {
@@ -118,9 +119,9 @@ export const ProfilePage: React.FC = () => {
               </h3>
               <span
                 className={`text-xs font-mono px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                  currentUser.role.toUpperCase() === 'ADMIN'
+                  isAdminRole(currentUser.role)
                     ? 'bg-purple-900/60 text-purple-300 border border-purple-500/40'
-                    : currentUser.role.toUpperCase() === 'MAINTAINER'
+                    : isMaintainerRole(currentUser.role)
                     ? 'bg-[#192A17] text-[#28B110] border border-[#28B110]/40'
                     : 'bg-[#1D241C] text-[#9EAE9D] border border-[#252E24]'
                 }`}

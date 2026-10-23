@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ExternalLink,
 } from 'lucide-react';
+import { isAdminRole, isMaintainerRole } from '../../../core/domain/roles';
 
 export const RoleSwitcher: React.FC = () => {
   const { currentUser, isAuthenticated, openLoginModal, logout } = useApp();
@@ -39,9 +40,8 @@ export const RoleSwitcher: React.FC = () => {
     );
   }
 
-  const roleUpper = (currentUser.role || '').toUpperCase();
-  const isAdmin = roleUpper === 'ADMIN';
-  const isMaintainer = roleUpper === 'MAINTAINER';
+  const isAdmin = isAdminRole(currentUser.role);
+  const isMaintainer = isMaintainerRole(currentUser.role);
 
   return (
     <div className="relative" ref={dropdownRef}>

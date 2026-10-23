@@ -21,6 +21,7 @@ import {
   Clock,
   GitBranch,
 } from 'lucide-react';
+import { isMaintainerRole } from '../../core/domain/roles';
 
 export const BountyDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -58,7 +59,7 @@ export const BountyDetailsPage: React.FC = () => {
     );
   }
 
-  const isMaintainer = currentUser.role === 'maintainer' || currentUser.id === bounty.maintainer_id;
+  const isMaintainer = isMaintainerRole(currentUser.role) || currentUser.id === bounty.maintainer_id;
   const myProposal = bounty.proposals?.find((p) => p.developer_id === currentUser.id);
 
   // 1. Desenvolvedor submete proposta de associação
@@ -205,7 +206,7 @@ export const BountyDetailsPage: React.FC = () => {
             </h3>
           </div>
 
-          {bounty.status === 'OPEN_FOR_PROPOSALS' && !myProposal && currentUser.role !== 'maintainer' && (
+          {bounty.status === 'OPEN_FOR_PROPOSALS' && !myProposal && !isMaintainer && (
             <button
               onClick={() => setShowProposalForm(!showProposalForm)}
               className="px-3.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"

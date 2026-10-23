@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import MetricCard from '../molecules/MetricCard';
@@ -10,25 +10,64 @@ import { Landmark, GitPullRequest, Code2, Clock, CheckCircle, PlusCircle, Filter
 import DesygenButton from '../atoms/DesygenButton';
 
 export const MaintainerDashboard: React.FC = () => {
-  const { bounties, treasury } = useApp();
+  const { bounties, treasury, currentUser, bountyUseCases } = useApp();
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [selectedBountyForClaim, setSelectedBountyForClaim] = useState<Bounty | null>(null);
+  const [maintainerMetrics, setMaintainerMetrics] = useState<{
+    activeBounties: number;
+    inProgressBounties: number;
+    awaitingMergeBounties: number;
+    totalPaidUsdc: number;
+  } | null>(null);
+
+  // Filter bounties for the logged-in maintainer
+  const maintainerBounties = bounties.filter(
+    (b) => !currentUser?.id || b.maintainer_id === currentUser.id
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    bountyUseCases
+      .getMaintainerMetrics(currentUser?.id)
+      .then((m) => {
+        if (isMounted) {
+          setMaintainerMetrics({
+            activeBounties: m.activeBounties,
+            inProgressBounties: m.inProgressBounties,
+            awaitingMergeBounties: m.awaitingMergeBounties,
+            totalPaidUsdc: m.totalPaidUsdc,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [bountyUseCases, currentUser?.id, bounties]);
 
   // 5 Métricas do Mantenedor (Seção 6.1 e 9.1)
   const isTreasuryLow = treasury ? treasury.available_usdc < 1000 : false;
   const treasuryBalance = treasury ? `$${treasury.available_usdc.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '$0.00';
-  const activeBounties = bounties.filter(
-    (b) => b.status !== 'CLAIMED' && b.status !== 'CANCELLED'
-  ).length;
-  const inProgressBounties = bounties.filter(
-    (b) => b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED'
-  ).length;
-  const awaitingMergeBounties = bounties.filter((b) => b.status === 'PR_OPEN').length;
-  const totalPaidUsdc = bounties
-    .filter((b) => b.status === 'CLAIMED')
-    .reduce((sum, b) => sum + b.usdc_amount, 0);
+  const activeBounties =
+    maintainerMetrics?.activeBounties ??
+    maintainerBounties.filter(
+      (b) => b.status !== 'CLAIMED' && b.status !== 'CANCELLED'
+    ).length;
+  const inProgressBounties =
+    maintainerMetrics?.inProgressBounties ??
+    maintainerBounties.filter(
+      (b) => b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED'
+    ).length;
+  const awaitingMergeBounties =
+    maintainerMetrics?.awaitingMergeBounties ??
+    maintainerBounties.filter((b) => b.status === 'PR_OPEN').length;
+  const totalPaidUsdc =
+    maintainerMetrics?.totalPaidUsdc ??
+    maintainerBounties
+      .filter((b) => b.status === 'CLAIMED')
+      .reduce((sum, b) => sum + b.usdc_amount, 0);
 
-  const filteredBounties = bounties.filter((b) => {
+  const filteredBounties = maintainerBounties.filter((b) => {
     if (filterStatus === 'ALL') return true;
     if (filterStatus === 'OPEN_FOR_PROPOSALS') return b.status === 'OPEN_FOR_PROPOSALS' || b.status === 'FUNDED';
     if (filterStatus === 'IN_PROGRESS') return b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED';
