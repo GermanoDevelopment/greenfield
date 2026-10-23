@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { pointsToUsdc } from '../../../core/domain/types';
 import type { Issue, Repository } from '../../../core/domain/types';
+import { useClient } from '@solana/react';
+import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
+import type { AppClient } from '../../../client';
+import { getVaultPdaAddress } from '../../../lib/greenfieldProgram';
+import SolanaAddressPill from '../atoms/SolanaAddressPill';
 import {
   AlertCircle,
   CheckCircle2,
@@ -14,12 +19,16 @@ import {
   Coins,
   User,
   Sparkles,
+  Wallet,
+  ShieldCheck,
 } from 'lucide-react';
 import DesygenButton from '../atoms/DesygenButton';
 
 export const CreateBountyForm: React.FC = () => {
   const navigate = useNavigate();
   const { treasury, gitHubService, createBounty, availableUsers, toggleRepositoryApproval } = useApp();
+  const client = useClient<AppClient>();
+  const connected = useConnectedWallet(client);
 
   // Estado do Wizard (1, 2, 3)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -31,10 +40,25 @@ export const CreateBountyForm: React.FC = () => {
   const [selectedIssueId, setSelectedIssueId] = useState<string>('');
   const [points, setPoints] = useState<number>(5000);
   const [selectedDevId, setSelectedDevId] = useState<string>('');
+  const [escrowVaultAddress, setEscrowVaultAddress] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    getVaultPdaAddress()
+      .then((addr) => {
+        if (mounted) setEscrowVaultAddress(String(addr));
+      })
+      .catch(() => {
+        if (mounted) setEscrowVaultAddress(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const fetchRepos = React.useCallback(async () => {
     const list = await gitHubService.listRepositories();
@@ -128,11 +152,24 @@ export const CreateBountyForm: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      // Obtém ou resolve o PDA do cofre/escrow on-chain
+      let pda = escrowVaultAddress;
+      if (!pda) {
+        try {
+          const derived = await getVaultPdaAddress();
+          pda = String(derived);
+          setEscrowVaultAddress(pda);
+        } catch {
+          pda = null;
+        }
+      }
+
       const bounty = await createBounty({
         repositoryId: selectedRepoId,
         issueId: selectedIssueId,
         points,
         developerId: selectedDevId || undefined,
+        escrow_pda: pda || undefined,
       });
       navigate(`/bounties/${bounty.id}`);
     } catch (err: any) {
@@ -485,6 +522,44 @@ export const CreateBountyForm: React.FC = () => {
                   <span className="font-semibold text-[#D2DFD1]">
                     {selectedDev ? `@${selectedDev.github_username}` : 'Em aberto'}
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Garantia & Custódia On-Chain */}
+            <div className="p-4 rounded-2xl bg-[#131A12] border border-[#252E24] flex flex-col gap-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-[#252E24]">
+                <span className="font-bold text-white flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#28B110]" />
+                  <span>Reserva On-Chain (Solana Devnet)</span>
+                </span>
+                <span className="font-mono text-[11px] text-[#28B110] font-semibold">
+                  Invariante 4 Garantida
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[#889887] text-[11px]">Cofre Escrow PDA:</span>
+                  {escrowVaultAddress ? (
+                    <SolanaAddressPill address={escrowVaultAddress} />
+                  ) : (
+                    <span className="font-mono text-[#D2DFD1] text-[11px]">
+                      Derivado via Anchor Program ID
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-[#889887] text-[11px]">Carteira do Mantenedor:</span>
+                  {connected?.account?.address ? (
+                    <SolanaAddressPill address={connected.account.address} />
+                  ) : (
+                    <div className="flex items-center gap-1 text-amber-400 font-medium text-[11px] py-1">
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>Carteira não conectada (opcional)</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -128,6 +128,7 @@ export interface Bounty {
   claim?: Claim;
   proposals?: Proposal[];
   github_issue_assigned?: boolean;
+  escrow_pda?: string;
 }
 
 export interface Treasury {

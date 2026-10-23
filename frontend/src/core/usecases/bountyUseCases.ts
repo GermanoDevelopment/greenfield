@@ -64,6 +64,7 @@ export class BountyUseCases {
     maintainer: User;
     points: number;
     developer?: User;
+    escrow_pda?: string;
   }): Promise<Bounty> {
     if (params.points < 100) {
       throw new Error('A recompensa mínima é de 100 pontos (1 USDC).');
@@ -105,6 +106,7 @@ export class BountyUseCases {
       accepted_at: params.developer ? new Date().toISOString() : undefined,
       github_issue_assigned: Boolean(params.developer),
       proposals: [],
+      escrow_pda: params.escrow_pda,
     });
   }
 
