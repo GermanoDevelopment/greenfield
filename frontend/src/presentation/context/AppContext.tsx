@@ -32,6 +32,7 @@ interface AppContextType {
   closeLoginModal: () => void;
   login: (email: string, password: string) => Promise<User>;
   register: (email: string, password: string, username?: string) => Promise<User>;
+  loginWithToken: (token: string) => Promise<User>;
   logout: () => void;
   bountyUseCases: BountyUseCases;
   gitHubService: GitHubService;
@@ -174,6 +175,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     async (email: string, password: string, username?: string) => {
       const res = await greenfieldApi.register({ email, password, username });
       const user = apiUserToUser(res.user);
+      userRepo.setCurrentUser(user);
+      setCurrentUserState(user);
+      setIsAuthenticated(true);
+      await refreshData();
+      return user;
+    },
+    [userRepo, apiUserToUser, refreshData]
+  );
+
+  const loginWithToken = useCallback(
+    async (token: string) => {
+      setAuthToken(token);
+      const me = await greenfieldApi.getMe();
+      const user = apiUserToUser(me);
       userRepo.setCurrentUser(user);
       setCurrentUserState(user);
       setIsAuthenticated(true);
@@ -372,6 +387,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         closeLoginModal,
         login,
         register,
+        loginWithToken,
         logout,
         bountyUseCases,
         gitHubService,
