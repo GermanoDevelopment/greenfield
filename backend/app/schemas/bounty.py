@@ -11,7 +11,16 @@ class BountyStatus(StrEnum):
     ASSIGNED = "ASSIGNED"
     SUBMITTED = "SUBMITTED"
     COMPLETED = "COMPLETED"
+    # Reward validated and payout unlocked, but the transfer itself has not
+    # executed yet (the on-chain escrow "ready to claim" state, or a validated
+    # payout waiting to be executed).
+    CLAIMABLE = "CLAIMABLE"
+    # Payout transaction executed and confirmed.
     CLAIMED = "CLAIMED"
+    # Payout execution failed; the reward stays validated and the payment can
+    # be retried. Without this state a failed payment is indistinguishable
+    # from one that never ran.
+    CLAIM_FAILED = "CLAIM_FAILED"
     CANCELLED = "CANCELLED"
 
 
@@ -20,7 +29,13 @@ BOUNTY_TRANSITIONS: dict[BountyStatus, set[BountyStatus]] = {
     BountyStatus.OPEN: {BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
     BountyStatus.ASSIGNED: {BountyStatus.SUBMITTED, BountyStatus.CANCELLED},
     BountyStatus.SUBMITTED: {BountyStatus.COMPLETED, BountyStatus.ASSIGNED, BountyStatus.CANCELLED},
-    BountyStatus.COMPLETED: {BountyStatus.CLAIMED},
+    BountyStatus.COMPLETED: {
+        BountyStatus.CLAIMABLE,
+        BountyStatus.CLAIMED,
+        BountyStatus.CLAIM_FAILED,
+    },
+    BountyStatus.CLAIMABLE: {BountyStatus.CLAIMED, BountyStatus.CLAIM_FAILED},
+    BountyStatus.CLAIM_FAILED: {BountyStatus.CLAIMABLE, BountyStatus.CLAIMED},
     BountyStatus.CLAIMED: set(),
     BountyStatus.CANCELLED: set(),
 }

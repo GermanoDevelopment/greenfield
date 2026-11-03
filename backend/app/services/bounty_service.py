@@ -350,6 +350,11 @@ async def complete_bounty(
             session,
             lambda: solana_service.approve_claim_onchain(bounty.id),
         )
+        # The reward is validated and the claim is unlocked on-chain, but the
+        # developer's own claim transaction still has to execute: COMPLETED is
+        # "reward validated", CLAIMABLE is "payment validated, execution
+        # pending", CLAIMED is "transaction executed".
+        _transition(bounty, BountyStatus.CLAIMABLE)
     else:
         # Execute on-chain payout via Solinpy if hunter has wallet registered (legacy/fallback mode)
         if bounty.hunter_id:
@@ -362,8 +367,17 @@ async def complete_bounty(
                     )
                     bounty.tx_signature = tx_sig
                     bounty.claimed_at = datetime.now(UTC)
-                except Exception:
-                    pass
+                    _transition(bounty, BountyStatus.CLAIMED)
+                except Exception as e:
+                    # The reward stays validated, but the payment did not run:
+                    # record the failure instead of leaving the bounty silently
+                    # COMPLETED with no tx_signature. The claim path can retry.
+                    _transition(bounty, BountyStatus.CLAIM_FAILED)
+                    await session.commit()
+                    raise ConflictError(
+                        f"Bounty {bounty.id} was validated but the payout failed "
+                        f"and was recorded as CLAIM_FAILED: {e}"
+                    ) from e
 
     await session.commit()
     await session.refresh(bounty)
